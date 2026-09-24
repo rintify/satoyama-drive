@@ -1,16 +1,93 @@
 import * as T from '../vendor/three.module.js';
-import {createWorld} from './world.js';
+import {createWorld,nearestRoad,sampleRoad} from './world.js';
 import {createCar} from './vehicle.js';
-const canvas=document.querySelector('#scene');
-try {
-const renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.16;
-const scene=new T.Scene();scene.background=new T.Color('#b4cbd0');scene.fog=new T.FogExp2('#b9c9bb',.0024);scene.add(new T.HemisphereLight('#e1effa','#828268',2.6));const sun=new T.DirectionalLight('#fff0cc',3.1);sun.position.set(-80,100,55);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-70,right:70,top:70,bottom:-70,near:1,far:330});sun.shadow.bias=-.0008;sun.shadow.normalBias=.045;scene.add(sun,sun.target);
-const world=createWorld(scene);const car=createCar('#d7dcce',{player:true});car.root.position.set(-2.2,.07,102);scene.add(car.root);car.interior.visible=false;
-const camera=new T.PerspectiveCamera( sixty(),innerWidth/innerHeight,.06,2000);function sixty(){return innerWidth<innerHeight?74: sixtyW()}function sixtyW(){return 61}
-camera.position.set(-2.1,2.1,105);camera.lookAt(-1.8,1.9,45);
-function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}addEventListener('resize',resize);
-document.querySelector('#loading').hidden=true;
-document.querySelector('#start').onclick=()=>{document.body.classList.add('playing');document.querySelector('#drive-status').textContent='READY';};
-renderer.setAnimationLoop(()=>renderer.render(scene,camera));
-window.__satoyama={scene,renderer,camera,world,car};
-} catch(error){document.querySelector('#loading-message').textContent='3D表示を開始できませんでした。WebGL対応のブラウザで開いてください。';console.error(error);}
+import {createVehicleState,stepVehicle,shiftGear,clamp,intersectsBox,carsOverlap,personOverlap,lightPhase,RuleBook} from './simulation.js';
+import {createControls} from './controls.js';
+import {createTraffic} from './traffic.js';
+import {createMirrors} from './mirrors.js';
+import {createAudio} from './audio.js';
+const $=id=>document.getElementById(id);
+async function boot(){
+ const canvas=$('scene');
+ const renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.03;renderer.outputColorSpace=T.SRGBColorSpace;
+ const scene=new T.Scene();scene.background=new T.Color('#a8cbd3');scene.fog=new T.FogExp2('#bdcbbb',.00155);scene.add(new T.HemisphereLight('#d9eefa','#758168',2.1));
+ const sun=new T.DirectionalLight('#fff0d0',3.4);sun.position.set(-80,100,55);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-56,right:56,top:56,bottom:-56,near:1,far:300});sun.shadow.bias=-.0004;sun.shadow.normalBias=.035;scene.add(sun,sun.target);
+ // Gradient atmosphere with a small warm solar disc. Pure geometry and shaders: no remote assets at runtime.
+ const sky=new T.Mesh(new T.SphereGeometry(1800,24,16),new T.ShaderMaterial({side:T.BackSide,depthWrite:false,uniforms:{sun:{value:new T.Vector3(-.62,.72,-.25).normalize()}},vertexShader:'varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec3 vP;uniform vec3 sun;void main(){vec3 d=normalize(vP);float h=max(0.,d.y);vec3 c=mix(vec3(.79,.83,.76),vec3(.35,.60,.76),pow(h,.48));float s=max(dot(d,sun),0.);c+=vec3(1.,.75,.38)*pow(s,80.)*.25+vec3(1.,.9,.63)*smoothstep(.9994,.9998,s)*1.5;gl_FragColor=vec4(c,1.);}'}));scene.add(sky);
+ const world=createWorld(scene);const car=createCar('#cbd2c6',{player:true});scene.add(car.root);
+ const state=createVehicleState();let currentRoad=nearestRoad(world.roads,state.x,state.z),started=false,paused=false,cameraMode='cockpit',time=0,frame=0,accumulator=0,last=performance.now(),hudTimer=0,mapTimer=0,toastTimer=0,collisionPause=0,signalTimer=0,quality='auto',lowQuality=false,measureTime=0,measureFrames=0,fps=60,lastSignalClick=0;
+ const camera=new T.PerspectiveCamera(innerWidth<innerHeight?74:65,innerWidth/innerHeight,.045,2200);const traffic=createTraffic(scene,world);const sound=createAudio();
+ const cache={speed:$('speed'),score:$('score'),rpm:$('rpm'),status:$('drive-status'),gear:$('gear-display'),limit:$('speed-limit'),area:$('area-label'),distance:$('travel-distance'),route:$('route-name'),rev:$('rev-fill'),zone:$('zone-state'),perf:$('performance')};
+ const areaNames={town:'桜町・住宅街',country:'里山・田舎道',highway:'里山自動車道'};
+ function toast(message,penalty=false){$('toast').textContent=message;$('toast').className='visible'+(penalty?' penalty':'');toastTimer=4.5;}
+ const rules=new RuleBook((message,amount)=>{toast(`${message}  −${amount} PTS`,true);document.body.classList.remove('impact');void document.body.offsetWidth;document.body.classList.add('impact');});
+ function active(){return started&&!paused&&collisionPause<=0;}
+ function openDialog(id){if(paused&&$(id).open)return;controls.release();paused=true;$(id).showModal();}
+ function closeDialogs(){document.querySelectorAll('dialog[open]').forEach(d=>d.close());paused=false;last=performance.now();}
+ function togglePause(){if(!started)return;if(paused)closeDialogs();else openDialog('menu');}
+ function parking(){if(Math.abs(state.speed)>.5&&!state.parking){toast('停車してからパーキングブレーキを操作してください。');return;}if(state.parking&&state.brake<.2){toast('ブレーキを踏みながら ⒫ を解除してください。');return;}state.parking=!state.parking;toast(state.parking?'パーキングブレーキ ON':'パーキングブレーキ OFF');updateHud();}
+ function signal(direction){state.signal=state.signal===direction?0:direction;signalTimer=0;updateHud();sound.click();}
+ function changeCamera(){cameraMode=cameraMode==='cockpit'?'chase':'cockpit';document.body.classList.toggle('chase',cameraMode==='chase');$('camera-label').textContent=cameraMode==='cockpit'?'車内':'車外';$('camera').setAttribute('aria-label',cameraMode==='cockpit'?'車外カメラに切り替え':'車内カメラに切り替え');controls.center();updateCamera(1,true);}
+ const controls=createControls(state,{active,pause:togglePause,parking,signal,camera:changeCamera,blur(){if(started&&!paused)openDialog('menu');}});
+ const mirrors=createMirrors(renderer,scene,car);
+ $('start').onclick=()=>{started=true;document.body.classList.add('playing');toast('ブレーキを上にスライド → D を選ぶ → ⒫ を解除');updateHud();};
+ $('pause').onclick=()=>{if(started)togglePause();else openDialog('menu');};$('resume').onclick=closeDialogs;$('help').onclick=()=>openDialog('help-dialog');$('map-button').onclick=()=>{drawMap($('large-map'),true);openDialog('map-dialog');};
+ document.querySelectorAll('.close-modal,.close-help').forEach(b=>b.onclick=closeDialogs);
+ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{e.preventDefault();closeDialogs();}));
+ $('camera').onclick=changeCamera;$('look-center').onclick=()=>controls.center();$('signal-left').onclick=()=>signal(-1);$('signal-right').onclick=()=>signal(1);$('parking-brake').onclick=parking;
+ document.querySelectorAll('[data-gear]').forEach(button=>button.onclick=()=>{if(!started){toast('「ドライブをはじめる」を押してください。');return;}const result=shiftGear(state,button.dataset.gear);if(!result.ok)toast(result.message);else if(state.parking&&state.gear!=='P')toast('ブレーキを踏んだまま ⒫ を解除してください。');updateHud();});
+ $('sound').onclick=async()=>{try{const on=await sound.toggle();$('sound').classList.toggle('selected',on);$('sound').setAttribute('aria-label',on?'サウンドをオフ':'サウンドをオン');toast(on?'エンジン・走行音 ON':'サウンド OFF');}catch{toast('このブラウザではサウンドを開始できません。');}};
+ function place(area){let p;if(area==='town')p={x:-2.25,y:.04,z:102,yaw:0};else if(area==='country'){const q=sampleRoad(world.rural,160);p={x:q.x+q.tz*2.1,y:q.y,z:q.z-q.tx*2.1,yaw:Math.atan2(-q.tx,-q.tz)};}else if(area==='highway')p={x:297.5,y:7,z:-125,yaw:0};else throw new Error('Unknown area');Object.assign(state,p,{speed:0,throttle:0,brake:0,steering:0,roadWheel:0,gear:'P',parking:true});collisionPause=0;controls.release();controls.center();currentRoad=nearestRoad(world.roads,state.x,state.z);for(const c of traffic.cars)if(Math.hypot(c.x-state.x,c.z-state.z)<12){c.d=clamp(c.d+30,0,c.road.length);traffic.update(0,time,state,lightPhase(time));}updateCamera(1,true);updateHud();drawMap($('minimap'));}
+ document.querySelectorAll('[data-area]').forEach(b=>b.onclick=()=>{place(b.dataset.area);closeDialogs();toast(areaNames[b.dataset.area]+'に移動しました。');});
+ function recover(){const r=nearestRoad(world.roads,state.x,state.z);const sameDirection=(-Math.sin(state.yaw)*r.tx-Math.cos(state.yaw)*r.tz)>0?1:-1;const nx=-r.tz,nz=r.tx;Object.assign(state,{x:r.x-nx*sameDirection*2.2,z:r.z-nz*sameDirection*2.2,y:r.y,yaw:Math.atan2(-r.tx*sameDirection,-r.tz*sameDirection),speed:0,steering:0,roadWheel:0,throttle:0,brake:0,parking:true,gear:'P'});controls.release();controls.center();collisionPause=0;updateCamera(1,true);updateHud();}
+ $('reset').onclick=()=>{recover();closeDialogs();toast('道路に戻りました。ブレーキを踏んで D へ。');};
+ function setQuality(mode){quality=mode;lowQuality=mode==='low';renderer.setPixelRatio(Math.min(devicePixelRatio,lowQuality?1:1.5));renderer.shadowMap.enabled=!lowQuality;renderer.setSize(innerWidth,innerHeight);mirrors.resize();}
+ $('quality').onchange=e=>setQuality(e.target.value);
+ const v3=new T.Vector3(),up=new T.Vector3(0,1,0),target=new T.Vector3();let smoothCam=new T.Vector3();
+ function updateCamera(dt,snap=false){car.root.position.set(state.x,state.y+.025,state.z);car.root.rotation.y=state.yaw;const slope=currentRoad.road.highway?(()=>{const r=currentRoad.road;const s=r.samples;for(let i=1;i<s.length;i++)if(state.z>=Math.min(s[i-1].z,s[i].z)&&state.z<=Math.max(s[i-1].z,s[i].z))return Math.atan2(s[i].y-s[i-1].y,Math.abs(s[i].z-s[i-1].z));return 0;})():0;car.root.rotation.x=-slope*Math.cos(state.yaw);
+  const view=controls.input;car.exterior.visible=true;car.interior.visible=cameraMode==='cockpit';
+  if(cameraMode==='cockpit'){v3.set(.43,1.34,.43).applyAxisAngle(up,state.yaw);camera.position.set(state.x+v3.x,state.y+v3.y,state.z+v3.z);camera.rotation.order='YXZ';camera.rotation.set(-.027+view.pitch-slope*Math.cos(state.yaw),state.yaw+view.look,Math.sin(state.roadWheel)*Math.min(Math.abs(state.speed),15)*.0008);}
+  else{v3.set(0,4.8,9).applyAxisAngle(up,state.yaw+view.look);target.set(state.x+v3.x,state.y+v3.y,state.z+v3.z);if(snap)smoothCam.copy(target);else smoothCam.lerp(target,1-Math.exp(-7*dt));camera.position.copy(smoothCam);v3.set(0,.8,2).applyAxisAngle(up,state.yaw);camera.lookAt(state.x+v3.x,state.y+v3.y,state.z+v3.z);}
+  sun.position.set(state.x-65,state.y+95,state.z+45);sun.target.position.set(state.x,state.y,state.z-10);sun.target.updateMatrixWorld();sky.position.set(state.x,0,state.z);
+ }
+ function updateHud(){cache.speed.textContent=Math.round(Math.abs(state.speed)*3.6);cache.score.textContent=state.score.toLocaleString('en-US');cache.rpm.innerHTML=`${Math.round(state.rpm/50)*50} <small>rpm</small>`;cache.gear.textContent=state.gear;cache.status.textContent=paused?'PAUSED':state.parking?'PARKING':state.gear==='R'?'REVERSE':state.gear==='N'?'NEUTRAL':state.gear==='P'?'PARKING':`DRIVE / ${state.gearStep}`;cache.limit.textContent=currentRoad.road.limit;cache.area.textContent=areaNames[currentRoad.road.area];cache.route.textContent=currentRoad.road.area==='town'?'桜町を、気ままに。':currentRoad.road.area==='country'?'緑の向こうへ。':'遠くまで、心地よく。';cache.distance.textContent=(state.distance/1000).toFixed(2)+' km';cache.rev.style.width=clamp(state.rpm/6500*100,8,100)+'%';cache.zone.textContent=currentRoad.distance>currentRoad.road.width/2?'路肩に注意':state.speed*3.6>currentRoad.road.limit+3?'速度に注意':'左側通行';cache.speed.style.color=state.speed*3.6>currentRoad.road.limit+3?'#ffc0a3':'';
+  document.querySelectorAll('[data-gear]').forEach(b=>{const on=b.dataset.gear===state.gear;b.classList.toggle('selected',on);b.setAttribute('aria-pressed',on);});$('parking-brake').classList.toggle('selected',state.parking);$('parking-brake').setAttribute('aria-pressed',state.parking);$('signal-left').classList.toggle('active',state.signal===-1);$('signal-right').classList.toggle('active',state.signal===1);$('signal-left').setAttribute('aria-pressed',state.signal===-1);$('signal-right').setAttribute('aria-pressed',state.signal===1);controls.render();}
+ function drawMap(canvas,large=false){const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);ctx.fillStyle='#1a342a';ctx.fillRect(0,0,w,h);const scale=large?.49:.43,cx=large?45:state.x,cz=large?-225:state.z;
+  const pt=(x,z)=>[w/2+(x-cx)*scale,h/2+(z-cz)*scale];ctx.lineCap='round';
+  if(large){ctx.fillStyle='#294132';for(const [x,z]of [[-260,-550],[380,-500],[-200,150]]){const p=pt(x,z);ctx.beginPath();ctx.ellipse(...p,80,120,.1,0,Math.PI*2);ctx.fill();}}
+  for(const r of world.roads){ctx.strokeStyle=r.highway?'#abbd87':'#637d66';ctx.lineWidth=large?5:6;ctx.beginPath();r.samples.forEach((p,i)=>{const [x,y]=pt(p.x,p.z);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();}
+  if(large){ctx.font='20px sans-serif';ctx.fillStyle='#c4d5b6';for(const [text,x,z]of [['桜町',-82,225],['里山',-96,-624],['里山自動車道',323,-204]]){const p=pt(x,z);ctx.fillText(text,p[0],p[1]);}}
+  if(!large){ctx.fillStyle='#91ab92';for(const c of traffic.cars){const p=pt(c.x,c.z);ctx.beginPath();ctx.arc(...p,2,0,Math.PI*2);ctx.fill();}}
+  const p=pt(state.x,state.z);ctx.save();ctx.translate(...p);ctx.rotate(-state.yaw);ctx.fillStyle='#deefab';ctx.shadowBlur=10;ctx.shadowColor='#deefab';ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6,7);ctx.lineTo(0,4);ctx.lineTo(-6,7);ctx.closePath();ctx.fill();ctx.restore();
+  if(!large){ctx.fillStyle='#93ad91';ctx.font='18px sans-serif';ctx.fillText('N',w-20,23);}
+ }
+ function collision(previous,key,amount,message){state.x=previous.x;state.z=previous.z;state.speed=0;state.throttle=0;state.brake=0;state.parking=true;rules.penalize(state,key,amount,message,5);collisionPause=.55;controls.release();}
+ function physics(dt){time+=dt;const phase=lightPhase(time);traffic.update(dt,time,state,phase);for(const sig of world.signals){sig.phase=phase;sig.lights.forEach((m,i)=>m.color.set(i===0?(phase==='green'?'#50dfb1':'#183b31'):i===1?(phase==='yellow'?'#ffc34d':'#4d4021'):(phase==='red'?'#ff5844':'#492927')));}
+  if(!started)return;controls.update(dt);if(collisionPause>0){collisionPause-=dt;return;}
+  const previous={x:state.x,z:state.z,yaw:state.yaw};const offroad=currentRoad.distance>currentRoad.road.width/2;stepVehicle(state,dt,offroad);currentRoad=nearestRoad(world.roads,state.x,state.z);state.y+=( (currentRoad.distance<currentRoad.road.width/2+1?currentRoad.y:0)-state.y)*Math.min(1,dt*20);
+  if(Math.abs(state.speed)>.05){
+   const gx=Math.floor(state.x/20),gz=Math.floor(state.z/20);let hit=false;
+   if(state.y<2){for(let x=gx-1;x<=gx+1&&!hit;x++)for(let z=gz-1;z<=gz+1&&!hit;z++)for(const box of world.grid.get(x+','+z)||[])if(intersectsBox(state,box)){collision(previous,'building',100,'建物に接触しました');hit=true;break;}}
+   if(!hit&&currentRoad.road.highway&&state.z> -535&&state.z<110&&(Math.abs(state.x-300)<1.25||Math.abs(state.x-300)>7.25)){collision(previous,'barrier',70,'ガードレールに接触しました');hit=true;}
+   if(!hit)for(const c of traffic.cars)if(Math.abs(c.y-state.y)<2&&Math.hypot(c.x-state.x,c.z-state.z)<5&&carsOverlap(state,c)){collision(previous,'car',100,'車両に接触しました');hit=true;break;}
+   if(!hit&&state.y<2)for(const p of traffic.people)if(personOverlap(state,p)){collision(previous,'person',200,'歩行者に接触しました。周囲を確認してください');hit=true;break;}
+   if(!hit&&intersectsBox(state,traffic.tramState))collision(previous,'tram',100,'路面電車に接触しました');
+   rules.tick(dt,state,currentRoad,previous,world.intersections.slice(0,4),phase);
+  }else rules.time+=dt;
+  if(state.signal){signalTimer+=dt;if(signalTimer>14){state.signal=0;signalTimer=0;}if(Math.floor(time*2)!==lastSignalClick){lastSignalClick=Math.floor(time*2);sound.click();}}
+  if(Math.hypot(state.x,state.z)>1300){recover();toast('走行エリアの道路に戻りました。');}
+  car.animate(state.roadWheel,state.speed,dt,state.brake>.05||state.parking);
+ }
+ function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<innerHeight?74:65;camera.updateProjectionMatrix();mirrors.resize();}
+ addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();paused=true;controls.release();$('loading').hidden=false;$('loading-message').textContent='3D表示を再開しています…';});canvas.addEventListener('webglcontextrestored',()=>location.reload());
+ updateCamera(1,true);updateHud();drawMap($('minimap'));for(let i=0;i<3;i++)mirrors.update(1,state,true);renderer.render(scene,camera);mirrors.draw();$('loading').hidden=true;
+ renderer.setAnimationLoop(now=>{const elapsed=Math.min((now-last)/1000,.1);last=now;frame++;measureFrames++;measureTime+=elapsed;if(measureTime>3){fps=Math.round(measureFrames/measureTime);if(quality==='auto'&&fps<36&&!lowQuality){lowQuality=true;renderer.setPixelRatio(1);renderer.shadowMap.enabled=false;renderer.setSize(innerWidth,innerHeight);mirrors.resize();}cache.perf.textContent=`${lowQuality?'軽量':'標準'} · ${fps} fps`;measureFrames=0;measureTime=0;}
+  if(!paused){accumulator+=elapsed;let steps=0;while(accumulator>=1/60&&steps<6){physics(1/60);accumulator-=1/60;steps++;}}else accumulator=0;
+  updateCamera(elapsed);sound.update(state,paused||!started);if(!paused&&cameraMode==='cockpit')mirrors.update(elapsed,state,false,lowQuality);
+  renderer.setViewport(0,0,innerWidth,innerHeight);renderer.render(scene,camera);if(cameraMode==='cockpit')mirrors.draw();hudTimer+=elapsed;mapTimer+=elapsed;if(hudTimer>.08){updateHud();hudTimer=0;}if(mapTimer>.18){drawMap($('minimap'));mapTimer=0;}if(toastTimer>0){toastTimer-=elapsed;if(toastTimer<=0)$('toast').classList.remove('visible');}
+ });
+ // Optional WebMCP exposes only the same navigation/read actions as the visible game UI.
+ const snapshot=()=>({started,paused,area:currentRoad.road.area,gear:state.gear,parkingBrake:state.parking,speedKmh:Math.round(Math.abs(state.speed)*3.6),score:state.score,distanceKm:Math.round(state.distance)/1000,position:{x:Math.round(state.x),z:Math.round(state.z)},quality:lowQuality?'low':'standard'});
+ if(document.modelContext?.registerTool){const lifecycle=new AbortController();addEventListener('pagehide',()=>lifecycle.abort(),{once:true});const tools=[{name:'read_drive_state',title:'運転状態を読む',description:'現在の速度、シフト、スコア、位置を取得します。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute(input){if(!input||Object.keys(input).length)throw new Error('No parameters expected');return snapshot();}},{name:'move_to_drive_area',title:'出発地点に移動',description:'地図と同じ操作で指定したエリアへ停車状態で移動します。スコアは維持されます。',inputSchema:{type:'object',properties:{area:{type:'string',enum:['town','country','highway']}},required:['area'],additionalProperties:false},annotations:{readOnlyHint:false},execute(input){if(!input||Object.keys(input).length!==1||!['town','country','highway'].includes(input.area))throw new Error('Valid area is required');place(input.area);closeDialogs();toast(areaNames[input.area]+'に移動しました。');return snapshot();}}];for(const tool of tools)try{await document.modelContext.registerTool(tool,{signal:lifecycle.signal});}catch(error){console.warn('Optional game tools unavailable:',error.message);}}
+}
+boot().catch(error=>{$('loading').hidden=false;$('loading-message').textContent='3D表示を開始できませんでした。ページを再読み込みするか、WebGL対応ブラウザで開いてください。';console.error(error);});
