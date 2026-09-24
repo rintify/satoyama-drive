@@ -27,6 +27,7 @@ function getPlate(){if(plateMaterial)return plateMaterial;const c=document.creat
 export function createCar(color='#b4bfc1',{player=false,van=false}={}){
  const root=new T.Group(),exterior=new T.Group(),interior=new T.Group(),fixed=new T.Group();root.add(exterior,interior);exterior.add(fixed);
  const paint=new T.MeshPhysicalMaterial({color,metalness:.76,roughness:.25,clearcoat:1,clearcoatRoughness:.12});
+ const turnLights=[-1,1].map(()=>new T.MeshStandardMaterial({color:'#72521c',emissive:'#ffb02a',emissiveIntensity:0}));
  const tail=new T.MeshStandardMaterial({color:'#841b1f',emissive:'#e92217',emissiveIntensity:.32,roughness:.23,metalness:.15});
  const body=new T.Mesh(bodyGeometry(),paint);body.castShadow=body.receiveShadow=true;fixed.add(body);
  const tall=van?.15:0;
@@ -51,6 +52,7 @@ export function createCar(color='#b4bfc1',{player=false,van=false}={}){
  box(fixed,tail,0,.84,2.161,.59,.026,.02,.008);box(fixed,darkMetal,0,.47,2.02,1.32,.13,.15,.04);box(fixed,darkMetal,0,.365,-2.09,1.43,.063,.21,.02);
  for(const [z,ry]of [[-2.247,Math.PI],[2.181,0]]){const p=new T.Mesh(new T.PlaneGeometry(.45,.225),getPlate());p.position.set(0,.608,z);p.rotation.y=ry;fixed.add(p);}
  box(fixed,chrome,0,.816,-2.191,.066,.042,.026,.012);box(fixed,chrome,0,.954,1.988,.07,.048,.016,.014);
+ for(const [i,side]of [-1,1].entries()){box(fixed,turnLights[i],side*.73,.815,2.102,.14,.034,.025,.01);box(fixed,turnLights[i],side*.744,.782,-2.068,.11,.025,.025,.009);}
  pack(fixed);
  const wheels=[],front=[];
  for(const x of [-.9,.9])for(const z of [-1.39,1.35]){const pivot=new T.Group(),spin=new T.Group();pivot.position.set(x,.34,z);pivot.add(spin);exterior.add(pivot);const tire=new T.Mesh(new T.CylinderGeometry(.319,.319,.216,36,1),rubber);tire.rotation.z=Math.PI/2;spin.add(tire);const lip=new T.Mesh(new T.TorusGeometry(.242,.016,7,32),chrome);lip.rotation.y=Math.PI/2;lip.position.x=Math.sign(x)*.119;spin.add(lip);const disc=new T.Mesh(new T.CylinderGeometry(.223,.223,.22,28),darkMetal);disc.rotation.z=Math.PI/2;spin.add(disc);for(let j=0;j<10;j++){const a=j*Math.PI/5;const spoke=box(spin,satin,Math.sign(x)*.125,Math.sin(a)*.117,Math.cos(a)*.117,.013,.028,.205,.008);spoke.rotation.x=-a;}box(spin,chrome,Math.sign(x)*.134,0,0,.022,.063,.063,.02);pack(spin);wheels.push(spin);if(z<0)front.push(pivot);}
@@ -71,5 +73,6 @@ export function createCar(color='#b4bfc1',{player=false,van=false}={}){
   for(const side of [-1,1]){box(interior,leather,side*.836,.82,.3,.075,.34,1.48,.045);box(interior,satin,side*.785,.92,-.07,.04,.018,.19,.009);}
  }
  function updateInstruments(state){if(!instruments)return;const a=instruments.getContext('2d');a.fillStyle='#091118';a.fillRect(0,0,512,192);for(const [cx,value,max,label]of [[116,Math.abs(state.speed)*3.6,160,'km/h'],[394,state.rpm,7000,'rpm']]){a.lineWidth=3;a.strokeStyle='#576c73';a.beginPath();a.arc(cx,99,72,Math.PI*.75,Math.PI*2.25);a.stroke();for(let i=0;i<=8;i++){const ang=Math.PI*.75+i/8*Math.PI*1.5;a.beginPath();a.moveTo(cx+Math.cos(ang)*62,99+Math.sin(ang)*62);a.lineTo(cx+Math.cos(ang)*70,99+Math.sin(ang)*70);a.stroke();}const angle=Math.PI*.75+Math.min(1,value/max)*Math.PI*1.5;a.strokeStyle='#abdbe1';a.lineWidth=3;a.beginPath();a.moveTo(cx,99);a.lineTo(cx+Math.cos(angle)*56,99+Math.sin(angle)*56);a.stroke();a.fillStyle='#afc8ca';a.font='16px sans-serif';a.textAlign='center';a.fillText(label,cx,144);}a.fillStyle='#d7edf0';a.textAlign='center';a.font='52px sans-serif';a.fillText(Math.round(Math.abs(state.speed)*3.6),253,102);a.font='25px sans-serif';a.fillText(state.gear,253,147);screen.needsUpdate=true;}
- return {root,exterior,interior,wheels,front,tail,updateInstruments,animate(steer,speed,dt,brake){const angles=ackermannAngles(steer);front.forEach(p=>p.rotation.y=-(p.position.x<0?angles.left:angles.right));wheels.forEach(w=>w.rotation.x-=speed*dt/.32);tail.emissiveIntensity=brake?2.6:.32;if(interior.userData.wheel)interior.userData.wheel.rotation.z=-steer*15.9;}};
+ let indicatorTime=0;
+ return {root,exterior,interior,wheels,front,tail,updateInstruments,animate(steer,speed,dt,brake,signal=0){indicatorTime+=dt;turnLights.forEach((m,i)=>m.emissiveIntensity=signal===[-1,1][i]&&indicatorTime%1<.5?3:0);const angles=ackermannAngles(steer);front.forEach(p=>p.rotation.y=-(p.position.x<0?angles.left:angles.right));wheels.forEach(w=>w.rotation.x-=speed*dt/.32);tail.emissiveIntensity=brake?2.6:.32;if(interior.userData.wheel)interior.userData.wheel.rotation.z=-steer*15.9;}};
 }
