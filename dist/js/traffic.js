@@ -1,5 +1,5 @@
 import * as T from '../vendor/three.module.js';
-import {createCar,createPerson,createTram} from './vehicle.js';
+import {createCar,createPerson,createTram} from './vehicle.js?v=5';
 import {createAgent,positionAgent,stepTraffic,seedFollowers,rearTraffic} from './traffic-ai.js';
 import {clamp} from './simulation.js';
 export function createTraffic(scene,world){

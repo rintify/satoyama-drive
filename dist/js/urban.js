@@ -1,7 +1,8 @@
 import * as T from '../vendor/three.module.js';
 import {nearestRoad,sampleRoad} from './road-network.js';
-export function createUrbanDistrict(scene,batch,m,network,colliders,sign,tree,house){
+export function createUrbanDistrict(scene,batch,m,network,colliders,sign,tree,house,streetLights,nightMaterials){
  const pavement=new T.MeshStandardMaterial({color:'#8c9292',roughness:.95}),stone=new T.MeshStandardMaterial({color:'#c1c5c4',roughness:.85}),office=new T.MeshStandardMaterial({color:'#8b9da3',metalness:.65,roughness:.2}),frame=new T.MeshStandardMaterial({color:'#434d54',metalness:.5,roughness:.35}),warm=new T.MeshStandardMaterial({color:'#dcc3a1',emissive:'#927440',emissiveIntensity:.16}),blue=new T.MeshStandardMaterial({color:'#234c68',roughness:.6}),orange=new T.MeshStandardMaterial({color:'#d47b40',roughness:.6});
+ office.emissive.set('#a4bacf');nightMaterials.push({material:warm,day:.16,night:1.2},{material:office,night:.065});
  const colors=[m.walls[0],m.walls[1],stone,m.walls[3]],shopNames=['桜町銀行','駅前薬局','珈琲 日和','さくら書店','SATOYAMA HOTEL','暮らしの雑貨'];
  const reserved=(x,z)=>x>86&&x<154&&z>370&&z<432;
  function clear(x,z,w,d){if(reserved(x,z))return false;const r=nearestRoad(network.roads,x,z);if(r.distance<Math.max(w,d)/2+r.road.width/2+2.1)return false;return !colliders.some(c=>Math.abs(c.x-x)<c.hx+w/2+1.3&&Math.abs(c.z-z)<c.hz+d/2+1.3);}
@@ -42,7 +43,7 @@ export function createUrbanDistrict(scene,batch,m,network,colliders,sign,tree,ho
  batch.box(stone,sx,6.0,415,69,1.1,3.5);batch.box(frame,sx,9.3,415,74,.18,5.6);for(let x=92;x<=152;x+=15)batch.box(stone,x,7.4,415,.15,3.7,.15);
  for(let i=0;i<3;i++){const x=97+i*19;batch.box(stone,x,7.25,421.2,18,3.3,2.7);batch.box(blue,x,6.6,419.82,18,.32,.06);for(let w=-7;w<8;w+=2.8)batch.box(office,x+w,7.8,419.8,2.05,1.1,.07);batch.box(frame,x,9.02,421.2,18.3,.18,2.9);}
  // Street lights, shop canopies and trees reinforce the scale of the avenues.
- for(let x=-143;x<230;x+=24)for(const z of [351.5,368.5]){if(network.junctions.some(q=>Math.hypot(q.x-x,q.z-z)<13))continue;batch.box(frame,x,4.1,z,.12,8.2,.12);batch.box(frame,x+1,8.2,z,2,.08,.1);batch.box(warm,x+1.8,8.15,z,.65,.1,.35);}
+ for(let x=-143;x<230;x+=24)for(const z of [351.5,368.5]){if(network.junctions.some(q=>Math.hypot(q.x-x,q.z-z)<13))continue;batch.box(frame,x,4.1,z,.12,8.2,.12);batch.box(frame,x+1,8.2,z,2,.08,.1);batch.box(m.lamp,x+1.8,8.15,z,.65,.1,.35);streetLights.push({x:x+1.8,y:7.9,z});}
  sign(73,3.4,347,['駅前通り'],'#315971',3.4,.65);sign(178,5.6,363,['← 桜町駅   駅前商店街 →'],'#275446',9,1.2,Math.PI);
  return {urbanBuildings:index,station:{x:sx,z:sz}};
 }
