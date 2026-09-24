@@ -16,9 +16,10 @@ function signTexture(lines,bg='#246247',fg='#f3f6e9',width=512,height=256){const
 function roofGeometry(){const v=[-1,0,-1,1,0,-1,0,.8,-1,-1,0,1,0,.8,1,1,0,1,-1,0,-1,0,.8,-1,-1,0,1,0,.8,-1,0,.8,1,-1,0,1,0,.8,-1,1,0,-1,0,.8,1,1,0,-1,1,0,1,0,.8,1];for(let i=0;i<v.length;i+=9){for(let k=0;k<3;k++){const temp=v[i+3+k];v[i+3+k]=v[i+6+k];v[i+6+k]=temp;}}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();const uv=[];for(let i=0;i<v.length;i+=3)uv.push(v[i],v[i+2]);g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));return g;}
 export function createWorld(scene,assets){
  const batch=new Batch(scene),colliders=[],roads=[],signals=[];
- const scaled=(source,x,y=x)=>{const map=source.map.clone();map.repeat.set(x,y);map.needsUpdate=true;const normalMap=source.normalMap?.clone();if(normalMap){normalMap.repeat.set(x,y);normalMap.needsUpdate=true;}return {map,normalMap};};
+ const scaled=(source,x,y=x)=>{const map=source.map.clone();map.repeat.set(x,y);map.needsUpdate=true;const normalMap=source.normalMap?.clone();if(normalMap){normalMap.repeat.set(x,y);normalMap.needsUpdate=true;}return normalMap?{map,normalMap}:{map};};
  const roadMaps=scaled(assets.road,.22),wallMaps=scaled(assets.plaster,3,2),concreteMaps=scaled(assets.concrete,2,1),roofMaps=scaled(assets.roof,2.1,2.4);
  const materials={road:mat('#bdc0c2',{...roadMaps,normalScale:new T.Vector2(.45,.45),roughness:.92}),ground:mat('#a8b59b',{...scaled(assets.grass,880),normalScale:new T.Vector2(.28,.28)}),concrete:mat('#b3b1a7',{...concreteMaps,normalScale:new T.Vector2(.2,.2)}),curb:mat('#c6c9c1'),white:mat('#e0e1d4'),yellow:mat('#cda34f'),metal:mat('#82918c',{metalness:.65,roughness:.42}),dark:mat('#283336'),glass:mat('#72929a',{metalness:.82,roughness:.16}),wood:mat('#5d4d3d',{...scaled(assets.bark,2,3)}),leaf:[mat('#607445'),mat('#4c643d'),mat('#859560'),mat('#6b8750')],walls:[mat('#e4ddca',wallMaps),mat('#bec0b6',wallMaps),mat('#a79882',wallMaps),mat('#636967',wallMaps),mat('#d2cbc0',wallMaps)],roofs:[mat('#687878',{...roofMaps,normalScale:new T.Vector2(.6,.6),roughness:.7}),mat('#716659',{...roofMaps,normalScale:new T.Vector2(.6,.6)}),mat('#526263',{...roofMaps,normalScale:new T.Vector2(.6,.6),roughness:.65})]};
+ materials.walls.forEach((m,i)=>m.color.multiplyScalar(i===3?1.45:2.0));
  const foliage=new T.MeshStandardMaterial({map:assets.leaves.map,alphaMap:assets.leaves.alphaMap,alphaTest:.42,side:T.DoubleSide,roughness:1,color:'#a3af88'});
  const leafPlane=new T.PlaneGeometry(1,1),branchGeo=new T.CylinderGeometry(.35,1,1,7);
 
@@ -86,7 +87,7 @@ export function createWorld(scene,assets){
   B(materials.concrete,w/2+.48,.77,-d*.15,.86,.68,1.2);B(materials.metal,w/2+.93,.77,-d*.15,.026,.49,.99);for(let q=0;q<4;q++)B(materials.dark,w/2+.95,.59+q*.11,-d*.15,.01,.035,.85);
   B(materials.dark,-1.4,2.23,d/2+.13,.13,.32,.13);B(materials.white,-1.4,2.23,d/2+.2,.09,.22,.07);
   B(materials.wood,-w*.34,.73,d/2+1.1,.58,.38,.36);B(materials.metal,-w*.34,.32,d/2+1.1,.065,.58,.065);
-  if(isShop){B(materials.dark,0,1.76,d/2+.11,w*.7,2.45,.07);B(materials.glass,0,1.76,d/2+.16,w*.64,2.2,.04);B(materials.roofs[1],0,3.14,d/2+.7,w*.89,.16,1.55);}
+  if(isShop){const fz=d/2+.8;sign(x+fz*sin,3.45,z+fz*cos,[[ 'さくらベーカリー','山田商店','里山珈琲'][Math.floor(index/11)%3]],'#344b4c',w*.75,.52,yaw);B(materials.dark,0,1.76,d/2+.11,w*.7,2.45,.07);B(materials.glass,0,1.76,d/2+.16,w*.64,2.2,.04);B(materials.roofs[1],0,3.14,d/2+.7,w*.89,.16,1.55);}
   const frontX=x+(d/2+2.2)*sin,frontZ=z+(d/2+2.2)*cos;tree(frontX-w*.42*cos,frontZ+w*.42*sin,.48);
  }
 
@@ -107,6 +108,7 @@ export function createWorld(scene,assets){
  for(let z=-175;z<185;z+=36){const x=8.8;batch.add(cylinderGeo,materials.concrete,x,5.8,z,.15,11.6,.15);batch.box(materials.metal,x,10.5,z,3,.12,.15);batch.box(materials.dark,x+1,8.4,z,.6,1,.5);for(let k=-1;k<=1;k++){cablePoints.push(new T.Vector3(x+k,10.55,z),new T.Vector3(x+k,10.05,z+18),new T.Vector3(x+k,10.05,z+18),new T.Vector3(x+k,10.55,z+36));}batch.box(materials.metal,x-1.2,8.5,z,2.5,.08,.1);batch.box(materials.white,x-2.2,8.45,z,.7,.1,.4);}
  const cables=new T.LineSegments(new T.BufferGeometry().setFromPoints(cablePoints),new T.LineBasicMaterial({color:'#303f3d',transparent:true,opacity:.7}));scene.add(cables);
  function speedSign(x,z,limit,ry=0){batch.add(cylinderGeo,materials.metal,x,1.7,z,.055,3.4,.055);const c=document.createElement('canvas');c.width=c.height=128;const ctx=c.getContext('2d');ctx.fillStyle='#f4f1e9';ctx.beginPath();ctx.arc(64,64,61,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c64739';ctx.lineWidth=14;ctx.stroke();ctx.fillStyle='#27446a';ctx.font='bold 66px sans-serif';ctx.textAlign='center';ctx.fillText(limit,64,88);const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;const mesh=new T.Mesh(new T.CircleGeometry(.48,28),new T.MeshBasicMaterial({map:tex,side:T.DoubleSide}));mesh.position.set(x,3.15,z);mesh.rotation.y=ry;scene.add(mesh);}
+ for(const z of [78,65]){const mark=new T.Mesh(new T.RingGeometry(.7,.82,4),materials.white);mark.rotation.x=-Math.PI/2;mark.rotation.z=Math.PI/4;mark.scale.set(.7,1.45,1);mark.position.set(-2.2,.09,z);scene.add(mark);}
  speedSign(-5.5,68,'30');speedSign(-5.5,-226,'40');speedSign(291,-525,'80',Math.PI);
  sign(-.3,6.7,-99,['↑ 里山   Satoyama','← 桜町駅    高速入口 →'],'#2b6258',7,2.2);batch.add(cylinderGeo,materials.metal,5.8,3.9,-99,.095,7.8,.095);batch.box(materials.metal,2.7,7.9,-99,6.6,.13,.13);
  sign(295,6.8,110,['E8  里山自動車道','SATOYAMA EXPRESSWAY  ↑'],'#297054',7,2.1);batch.add(cylinderGeo,materials.metal,289.5,4,110,.11,8,.11);batch.box(materials.metal,293.2,8.1,110,7.6,.18,.16);

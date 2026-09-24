@@ -35,3 +35,12 @@ export class RuleBook {
  for(const q of intersections)if(crossedStopLine(previous,s,q,phase))this.penalize(s,'signal:'+q.x+','+q.z,80,'赤信号での進入',10);
  }
 }
+
+// The inside wheel follows a tighter radius than the outside wheel.
+export function ackermannAngles(steer, wheelbase=2.65, track=1.8) {
+ if(Math.abs(steer)<1e-6)return {left:0,right:0};
+ const radius=wheelbase/Math.tan(Math.abs(steer));
+ const inside=Math.atan(wheelbase/Math.max(.1,radius-track/2));
+ const outside=Math.atan(wheelbase/(radius+track/2));
+ return steer>0?{left:outside,right:inside}:{left:-inside,right:-outside};
+}

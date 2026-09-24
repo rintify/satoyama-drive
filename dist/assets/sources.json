@@ -56,20 +56,6 @@
     "license": "CC0"
   },
   {
-    "file": "plaster-Diffuse.jpg",
-    "asset": "white_plaster_rough_02",
-    "source": "https://polyhaven.com/a/white_plaster_rough_02",
-    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_plaster_rough_02/white_plaster_rough_02_diff_1k.jpg",
-    "license": "CC0"
-  },
-  {
-    "file": "plaster-nor_gl.jpg",
-    "asset": "white_plaster_rough_02",
-    "source": "https://polyhaven.com/a/white_plaster_rough_02",
-    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_plaster_rough_02/white_plaster_rough_02_nor_gl_1k.jpg",
-    "license": "CC0"
-  },
-  {
     "file": "tree-leaves_diff.jpg",
     "asset": "tree_small_02",
     "source": "https://polyhaven.com/a/tree_small_02",
@@ -96,5 +82,19 @@
     "source": "https://polyhaven.com/a/kloppenheim_06_puresky",
     "license": "CC0",
     "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloppenheim_06_puresky_2k.hdr"
+  },
+  {
+    "file": "plaster-Diffuse.jpg",
+    "asset": "white_plaster_02",
+    "source": "https://polyhaven.com/a/white_plaster_02",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_plaster_02/white_plaster_02_diff_1k.jpg",
+    "license": "CC0"
+  },
+  {
+    "file": "plaster-nor_gl.jpg",
+    "asset": "white_plaster_02",
+    "source": "https://polyhaven.com/a/white_plaster_02",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_plaster_02/white_plaster_02_nor_gl_1k.jpg",
+    "license": "CC0"
   }
 ]
