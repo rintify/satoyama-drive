@@ -3,7 +3,7 @@ export const WORLD_SEED = 427;
 let seed = WORLD_SEED;
 const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
 const mat = (color, extra = {}) => new T.MeshStandardMaterial({color,roughness:.85,...extra});
-const boxGeo = new T.BoxGeometry(1,1,1), cylinderGeo = new T.CylinderGeometry(1,1,1,8), sphereGeo = new T.IcosahedronGeometry(1,1);
+const boxGeo = new T.BoxGeometry(1,1,1), cylinderGeo = new T.CylinderGeometry(1,1,1,8), sphereGeo = new T.SphereGeometry(1,10,8);
 const tmp = new T.Object3D();
 class Batch {
  constructor(scene){this.scene=scene;this.items=new Map();}
@@ -29,8 +29,8 @@ export function createWorld(scene){
   const r={id,samples,width,limit,area,highway,length:distance};roads.push(r);
   // Lane marks and shoulders follow the same centerline as the drivable surface.
   for(let d=0;d<distance;d+=3){const p=sampleRoad(r,d);const rx=Math.atan2(p.tx,p.tz);const nx=-p.tz,nz=p.tx;const crossing=intersections.some(q=>Math.hypot(p.x-q.x,p.z-q.z)<7);
-   for(const side of [-1,1]){batch.box(materials.white,p.x+nx*side*(width/2-.35),p.y+.022,p.z+nz*side*(width/2-.35),.12,.015,3.1,rx);if(highway){batch.box(materials.concrete,p.x+nx*side*(width/2+.2),p.y+.44,p.z+nz*side*(width/2+.2),.32,.85,3.1,rx);}}
-   if(!crossing){if(highway){batch.box(materials.concrete,p.x,p.y+.35,p.z,.7,.7,3.1,rx);if(Math.floor(d/3)%3!==0)for(const side of [-1,1])batch.box(materials.white,p.x+nx*side*3.7,p.y+.025,p.z+nz*side*3.7,.12,.02,2.9,rx);}else if(Math.floor(d/3)%3!==0)batch.box(id==='rural'?materials.yellow:materials.white,p.x,p.y+.028,p.z,.12,.02,2.9,rx);}
+   for(const side of [-1,1]){batch.box(materials.white,p.x+nx*side*(width/2-.35),p.y+.022,p.z+nz*side*(width/2-.35),.12,.015,3.1,rx);if(highway&&d>45&&d<distance-45){batch.box(materials.concrete,p.x+nx*side*(width/2+.2),p.y+.44,p.z+nz*side*(width/2+.2),.32,.85,3.1,rx);}}
+   if(!crossing){if(highway){if(d>45&&d<distance-45)batch.box(materials.concrete,p.x,p.y+.35,p.z,.7,.7,3.1,rx);if(Math.floor(d/3)%3!==0)for(const side of [-1,1])batch.box(materials.white,p.x+nx*side*3.7,p.y+.025,p.z+nz*side*3.7,.12,.02,2.9,rx);}else if(Math.floor(d/3)%3!==0)batch.box(id==='rural'?materials.yellow:materials.white,p.x,p.y+.028,p.z,.12,.02,2.9,rx);}
    if(highway&&p.y>1&&Math.floor(d/3)%10===0){batch.box(materials.concrete,p.x,p.y/2,p.z,1.4,p.y,2.4,rx);batch.box(materials.concrete,p.x,p.y-.5,p.z,width,.8,1.3,rx);}
   }
   return r;
@@ -63,6 +63,10 @@ export function createWorld(scene){
  for(const x of [-19,20,-140,-179])for(let z=-128;z<=128;z+=28){house(x+(rand()-.5)*2,z,8+rand()*3,9+rand()*3,5.2+rand()*1.3,houseIndex++);if(houseIndex%2===0)tree(x+(x<0?-9:9),z+9,.9);}
  for(const z of [-184,184])for(let x=-130;x<-20;x+=27){house(x,z,9,10,5.6,houseIndex++);}
  for(let z=-125;z<=124;z+=40)for(const x of [-75,-110])house(x,z,11,12,6.2,houseIndex++);
+ // Window shutters, balconies, storm drains and a few modern flat-roof houses.
+ for(let z=-115;z<140;z+=28){for(const x of [-5.55,5.55]){batch.box(materials.dark,x,.227,z,.48,.015,.75);for(let k=-2;k<=2;k++)batch.box(materials.metal,x+k*.085,.241,z,.028,.01,.66);}batch.box(materials.concrete,-7,.23,z,1.6,.02,.07);batch.box(materials.concrete,7,.23,z,1.6,.02,.07);}
+ for(let z=-100;z<140;z+=56){const x=20;batch.box(materials.concrete,x,3.9,z+6,5.2,.18,1.6);for(const dx of [-2.5,2.5])batch.box(materials.metal,x+dx,4.3,z+6.7,.045,.9,.05);batch.box(materials.metal,x,4.75,z+6.7,5.2,.05,.05);for(let dx=-2.4;dx<=2.4;dx+=.35)batch.box(materials.metal,x+dx,4.35,z+6.7,.028,.8,.03);batch.box(materials.dark,x-4.5,1.03,z+7,.4,.3,.3);batch.add(cylinderGeo,materials.metal,x-4.5,.5,z+7,.03,.8,.03);}
+ for(let z=-103;z<135;z+=84){batch.box(materials.glass,-19,8.1,z,4.4,.06,3.2,0,0,-.29);batch.add(cylinderGeo,materials.metal,-17,8.5,z+1,.02,2,.02);batch.box(materials.metal,-17,9.35,z+1,1.4,.025,.03);}
  // Local convenience store, covered tram stops, utility poles and wires.
  const storeMat=mat('#ecede3'),storeGreen=mat('#338c70');batch.box(storeMat,26,2.5,-129,20,5,13);colliders.push({x:26,z:-129,hx:10,hz:6.5,type:'building'});batch.box(materials.glass,26,2.2,-122.4,18,3.6,.1);batch.box(storeGreen,26,4.7,-122.3,21,.55,.3);batch.box(materials.white,26,4.22,-122.3,21,.18,.3);
  function sign(x,y,z,lines,bg,w=6,h=3,ry=0){const tex=signTexture(lines,bg);tex.colorSpace=T.SRGBColorSpace;const m=new T.MeshBasicMaterial({map:tex,side:T.DoubleSide});const mesh=new T.Mesh(new T.PlaneGeometry(w,h),m);mesh.position.set(x,y,z);mesh.rotation.y=ry;scene.add(mesh);return mesh;}
@@ -83,7 +87,9 @@ export function createWorld(scene){
  const water=mat('#679798',{metalness:.4,roughness:.18});const fields=[mat('#a1a966'),mat('#809557'),mat('#9bab63'),mat('#91a264')];
  for(let x=-220;x<=215;x+=50)for(let z=-585;z< -235;z+=48){const n=nearestRoad(roads,x,z);if(n.distance<35)continue;batch.box(fields[Math.floor(rand()*4)],x,.0,z,44,.06,42);batch.box(water,x+24,.01,z,1.2,.03,46);for(let j=-19;j<21;j+=3)batch.box(materials.leaf[3],x+j,.13,z,.18,.15,40);}
  for(let i=0;i<200;i++){const x=-300+rand()*850,z=-790+rand()*1120;const n=nearestRoad(roads,x,z);if(n.distance<13||colliders.some(c=>Math.abs(c.x-x)<c.hx+3&&Math.abs(c.z-z)<c.hz+3))continue;if(x>-190&&x<35&&z>-210&&z<210)continue;tree(x,z,.8+rand()*1.3);}
- for(let i=0;i<12;i++){const angle=i/12*Math.PI*2;const x=Math.cos(angle)*1050,z=-250+Math.sin(angle)*1080;const radius=260+rand()*250,height=120+rand()*200;const geo=new T.ConeGeometry(radius,height,22,6);const p=geo.attributes.position;for(let j=0;j<p.count;j++){const y=p.getY(j);if(y<height*.49){p.setX(j,p.getX(j)*(1+rand()*.22));p.setZ(j,p.getZ(j)*(1+rand()*.22));}}geo.computeVertexNormals();const mount=new T.Mesh(geo,mat(['#648078','#718b81','#7e9584'][i%3]));mount.position.set(x,height/2-10,z);scene.add(mount);}
+ const mountains=new T.PlaneGeometry(4200,4200,110,110);mountains.rotateX(-Math.PI/2);const mp=mountains.attributes.position;
+ for(let i=0;i<mp.count;i++){const x=mp.getX(i),z=mp.getZ(i)-220;const edge=Math.max(Math.abs(x-35)-400,Math.abs(z+220)-650);const blend=T.MathUtils.smoothstep(edge,0,420);const broad=Math.sin(x*.0032+Math.cos(z*.002))*Math.cos(z*.0034);const detail=Math.sin(x*.011+z*.007)*Math.sin(z*.009-x*.005);mp.setXYZ(i,x,blend*(180+135*broad+45*detail)-.2,z);}mountains.computeVertexNormals();const mountainMesh=new T.Mesh(mountains,mat('#5a7866',{roughness:1}));mountainMesh.receiveShadow=true;scene.add(mountainMesh);
+
  // Small rural houses and a torii beside the scenic route.
  for(let i=0;i<7;i++)house(-132-i%2*22,-285-i*42,9,11,5.3,houseIndex++);
  const red=mat('#a64830');for(const x of [-30,-24])batch.add(cylinderGeo,red,x,3.1,-527,.26,6.2,.26);batch.box(red,-27,5.6,-527,9,.38,.48);batch.box(materials.dark,-27,6.35,-527,10,.35,.8);
@@ -93,4 +99,4 @@ export function createWorld(scene){
  return {roads,signals,colliders,grid,materials,rural,highway,intersections};
 }
 export function sampleRoad(road,d){d=Math.max(0,Math.min(d,road.length));const s=road.samples;let lo=0,hi=s.length-1;while(lo+1<hi){const m=(lo+hi)>>1;if(s[m].d<d)lo=m;else hi=m;}const a=s[lo],b=s[hi],t=(d-a.d)/(b.d-a.d||1);const dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz)||1;return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t,tx:dx/len,tz:dz/len};}
-export function nearestRoad(roads,x,z){let best={distance:Infinity,road:null,x,z,y:0,side:0,tx:0,tz:-1};for(const road of roads){for(let i=1;i<road.samples.length;i++){const a=road.samples[i-1],b=road.samples[i],dx=b.x-a.x,dz=b.z-a.z,len2=dx*dx+dz*dz;const t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/len2));const px=a.x+dx*t,pz=a.z+dz*t,d=Math.hypot(x-px,z-pz);if(d<best.distance){const len=Math.sqrt(len2);best={distance:d,road,x:px,z:pz,y:a.y+(b.y-a.y)*t,side:((x-px)*(-dz)+(z-pz)*dx)/len,tx:dx/len,tz:dz/len};}}}return best;}
+export function nearestRoad(roads,x,z){let best={distance:Infinity,road:null,x,z,y:0,side:0,tx:0,tz:-1};for(const road of roads){for(let i=1;i<road.samples.length;i++){const a=road.samples[i-1],b=road.samples[i],dx=b.x-a.x,dz=b.z-a.z,len2=dx*dx+dz*dz;const t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/len2));const px=a.x+dx*t,pz=a.z+dz*t,d=Math.hypot(x-px,z-pz);if(d<best.distance){const len=Math.sqrt(len2);best={distance:d,road,x:px,z:pz,y:a.y+(b.y-a.y)*t,side:((x-px)*(-dz)+(z-pz)*dx)/len,tx:dx/len,tz:dz/len,grade:(b.y-a.y)/len};}}}return best;}

@@ -11,7 +11,7 @@ function shell(sections,material){const verts=[],indices=[];for(const [z,w,botto
 export function createCar(color='#d8dcd4',{player=false,van=false}={}){const root=new T.Group(),exterior=new T.Group(),interior=new T.Group();root.add(exterior,interior);const paint=new T.MeshPhysicalMaterial({color,metalness:.58,roughness:.26,clearcoat:1,clearcoatRoughness:.15});const tail=red.clone();const height=van?.15:0;
  exterior.add(shell([[-2.23,.69,.45,.71],[-1.95,.86,.35,.89],[-.95,.91,.34,1.01],[.8,.91,.34,1.02],[1.95,.86,.41,.88],[2.17,.73,.48,.78]],paint));
  exterior.add(shell([[-1.02,.77,.97,1.0],[-.32,.7,1,1.5+height],[.68,.7,1,1.52+height],[1.34,.77,.97,1.04]],glass));
- const roof=box(exterior,paint,.0,1.52+height,.22,1.29,.07,1.04);roof.rotation.x=-.015;
+ const roof=box(exterior,paint,.0,1.52+height,.22,1.29,.07,1.04);roof.rotation.x=-.015;exterior.userData.roof=roof;
  // Narrow pillars, chrome window surrounds, door seams and handles.
  for(const s of [-1,1]){box(exterior,paint,s*.71,1.28+height*.5,.55,.048,.52,.07);let p=box(exterior,paint,s*.71,1.25+height*.5,-.64,.047,.64,.06);p.rotation.x=.85;let q=box(exterior,paint,s*.72,1.27+height*.5,1,.055,.69,.06);q.rotation.x=-.77;box(exterior,chrome,s*.797,1.01,.18,.025,.025,2.37);box(exterior,black,s*.897,.66,.47,.015,.53,.012);for(const z of [.25,1.25])box(exterior,chrome,s*.9,.92,z,.025,.04,.21);box(exterior,paint,s*1.0,1.04,-.6,.26,.18,.33);box(exterior,black,s*1.015,1.04,-.418,.2,.13,.018);box(exterior,black,s*.83,.4,0,.17,.15,2.8);}
  box(exterior,black,0,.55,-2.195,1.08,.18,.045);for(let i=0;i<5;i++)box(exterior,chrome,0,.49+i*.03,-2.224,1,.008,.01);
