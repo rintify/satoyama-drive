@@ -82,7 +82,7 @@ async function boot(){
   car.animate(state.roadWheel,state.speed,dt,state.brake>.05||state.parking,state.signal);
  }
  function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<innerHeight?74:65;camera.updateProjectionMatrix();mirrors.resize();}
- addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();paused=true;controls.release();$('loading').hidden=false;$('loading-message').textContent='3D表示を再開しています…';});canvas.addEventListener('webglcontextrestored',()=>location.reload());
+ addEventListener('resize',resize);resize();canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();paused=true;controls.release();$('loading').hidden=false;$('loading-message').textContent='3D表示を再開しています…';});canvas.addEventListener('webglcontextrestored',()=>location.reload());
  updateCamera(1,true);updateHud();drawMap($('minimap'));for(let i=0;i<3;i++)mirrors.update(1,state,true);renderer.render(scene,camera);mirrors.draw();$('loading').hidden=true;
  renderer.setAnimationLoop(now=>{const elapsed=Math.min((now-last)/1000,.1);last=now;frame++;measureFrames++;measureTime+=elapsed;if(measureTime>3){fps=Math.round(measureFrames/measureTime);if(quality==='auto'&&fps<36&&!lowQuality){lowQuality=true;renderer.setPixelRatio(1);sun.shadow.mapSize.set(1024,1024);sun.shadow.map?.dispose();sun.shadow.map=null;renderer.setSize(innerWidth,innerHeight);mirrors.resize();}cache.perf.textContent=`${lowQuality?'軽量':'標準'} · ${fps} fps`;measureFrames=0;measureTime=0;}
   if(!paused){accumulator+=elapsed;let steps=0;while(accumulator>=1/60&&steps<6){physics(1/60);accumulator-=1/60;steps++;}}else accumulator=0;
