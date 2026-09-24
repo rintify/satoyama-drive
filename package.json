@@ -1,0 +1,1 @@
+{"name":"satoyama-drive","private":true,"version":"1.0.0","type":"module","scripts":{"start":"python3 -m http.server 4173 --directory dist","test":"node --test tests/*.test.mjs"}}
