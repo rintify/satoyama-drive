@@ -1,5 +1,6 @@
 import * as T from '../vendor/three.module.js';
 import {createRoadNetwork,nearestRoad,sampleRoad} from './road-network.js';
+import {createUrbanDistrict} from './urban.js';
 import {renderRoadNetwork} from './road-renderer.js';
 export {nearestRoad,sampleRoad} from './road-network.js';
 export const WORLD_SEED = 427;
@@ -37,7 +38,7 @@ export function createWorld(scene,assets){
  for(const z of [151,149.5])batch.box(materials.metal,67,.1,z,460,.08,.08);
  for(let x=-160;x<300;x+=1.8)batch.box(materials.wood,x,.065,150.25,.22,.04,2.6);
  // Crosswalks, tactile tiles and stop lines.
- for(const q of intersections.slice(0,4)){for(const z of [-8,8])for(let x=-3.8;x<4;x+=1.15)batch.box(materials.white,q.x+x,.083,q.z+z,.65,.02,3.2);for(const x of [-7,7]){batch.box(materials.yellow,q.x+x,.25,q.z+7,1.2,.025,3.2);}batch.box(materials.white,q.x-2.35,.083,q.z+11,3.8,.02,.3);batch.box(materials.white,q.x+2.35,.083,q.z-11,3.8,.02,.3);}
+ for(const q of intersections){for(const z of [-8,8])for(let x=-3.8;x<4;x+=1.15)batch.box(materials.white,q.x+x,.083,q.z+z,.65,.02,3.2);for(const x of [-7,7]){batch.box(materials.yellow,q.x+x,.25,q.z+7,1.2,.025,3.2);}batch.box(materials.white,q.x-2.35,.083,q.z+11,3.8,.02,.3);batch.box(materials.white,q.x+2.35,.083,q.z-11,3.8,.02,.3);}
  for(const q of intersections){for(const x of [-8,8])for(let z=-3.8;z<4;z+=1.15)batch.box(materials.white,q.x+x,.083,q.z+z,3.2,.02,.65);batch.box(materials.white,q.x+11,.083,q.z+2.35,.3,.02,3.8);batch.box(materials.white,q.x-11,.083,q.z-2.35,.3,.02,3.8);}
  const roofGeo=roofGeometry();
  function tree(x,z,size=1){
@@ -47,9 +48,11 @@ export function createWorld(scene,assets){
   for(let j=0;j<27;j++){const a=j*2.399,rad=Math.sqrt((j+.5)/27)*2.3*size;const px=x+Math.cos(a)*rad,pz=z+Math.sin(a)*rad,py=(4.6+Math.sin(j*4.8)*.5-rad*.21)*size;batch.add(leafPlane,foliage,px,py,pz,2.3*size,2.1*size,1,a,Math.sin(j)*.75,Math.cos(j)*.45);}
  }
  function house(x,z,w=9,d=11,h=6.3,index=0){
+  if(Math.abs(x-26)<16&&Math.abs(z+129)<13)return;
+  if(colliders.some(c=>Math.abs(c.x-x)<c.hx+Math.max(w,d)/2+1&&Math.abs(c.z-z)<c.hz+Math.max(w,d)/2+1))return;
   const road=nearestRoad(roads,x,z);if(road.distance<Math.max(w,d)/2+road.road.width/2+3)return;
   const isModern=index%4===1,isShop=index%11===0;const wall=materials.walls[index%5],roof=materials.roofs[index%3];
-  let yaw=0;if(z>170)yaw=Math.PI;else if(z> -165){yaw=(x===-140||x>0)?-Math.PI/2:Math.PI/2;}
+  const yaw=Math.atan2(road.x-x,road.z-z);
   const cos=Math.cos(yaw),sin=Math.sin(yaw);
   const B=(m,px,py,pz,sx,sy,sz,ry=0,rx=0,rz=0)=>batch.box(m,x+px*cos+pz*sin,py,z-px*sin+pz*cos,sx,sy,sz,yaw+ry,rx,rz);
   const A=(geo,m,px,py,pz,sx,sy,sz,ry=0)=>batch.add(geo,m,x+px*cos+pz*sin,py,z-px*sin+pz*cos,sx,sy,sz,yaw+ry);
@@ -103,13 +106,15 @@ export function createWorld(scene,assets){
  sign(295,6.8,110,['E8  里山自動車道','SATOYAMA EXPRESSWAY  ↑'],'#297054',7,2.1);batch.add(cylinderGeo,materials.metal,289.5,4,110,.11,8,.11);batch.box(materials.metal,293.2,8.1,110,7.6,.18,.16);
  sign(-7,2.6,-53,['通学路'],'#efdc72',1.1,.9);batch.add(cylinderGeo,materials.metal,-7,1.3,-53,.04,2.6,.04);
  // Horizontal Japanese traffic lights; shared state drives geometry and rules.
- for(const q of intersections.slice(0,4))for(const axis of ['z','x']){const group=new T.Group();group.rotation.y=axis==='x'?Math.PI/2:0;group.position.set(q.x,0,q.z);for(const side of [-1,1]){const x=side*5.7,z=side*-6;const pole=new T.Mesh(new T.CylinderGeometry(.09,.09,6.5,8),materials.metal);pole.position.set(x,3.25,z);group.add(pole);const arm=new T.Mesh(new T.BoxGeometry(4,.1,.1),materials.metal);arm.position.set(x-side*1.9,6.2,z);group.add(arm);const head=new T.Mesh(new T.BoxGeometry(1.55,.52,.42),materials.dark);head.position.set(x-side*3.5,6,z);group.add(head);const lights=[];for(let i=0;i<3;i++){const material=new T.MeshBasicMaterial({color:0x193e2e});const bulb=new T.Mesh(new T.SphereGeometry(.17,12,8),material);bulb.scale.z=.5;bulb.position.set(head.position.x+(i-1)*.43,6,z+side*.25);group.add(bulb);lights.push(material);}signals.push({x:q.x,z:q.z,axis,direction:side,lights,phase:0});}scene.add(group);}
+ for(const q of intersections)for(const axis of ['z','x']){const group=new T.Group();group.rotation.y=axis==='x'?Math.PI/2:0;group.position.set(q.x,0,q.z);for(const side of [-1,1]){const x=side*5.7,z=side*-6;const pole=new T.Mesh(new T.CylinderGeometry(.09,.09,6.5,8),materials.metal);pole.position.set(x,3.25,z);group.add(pole);const arm=new T.Mesh(new T.BoxGeometry(4,.1,.1),materials.metal);arm.position.set(x-side*1.9,6.2,z);group.add(arm);const head=new T.Mesh(new T.BoxGeometry(1.55,.52,.42),materials.dark);head.position.set(x-side*3.5,6,z);group.add(head);const lights=[];for(let i=0;i<3;i++){const material=new T.MeshBasicMaterial({color:0x193e2e});const bulb=new T.Mesh(new T.SphereGeometry(.17,12,8),material);bulb.scale.z=.5;bulb.position.set(head.position.x+(i-1)*.43,6,z+side*.25);group.add(bulb);lights.push(material);}signals.push({x:q.x,z:q.z,axis,direction:side,lights,phase:0});}scene.add(group);}
+ for(const stop of network.stops){const q={x:stop.x,z:stop.z};q[stop.axis]-=stop.dir*stop.offset;const other=stop.axis==='x'?'z':'x',lane=stop.axis==='z'?stop.dir*2.2:-stop.dir*2.2;q[other]+=lane;batch.box(materials.white,q.x,.08,q.z,stop.axis==='z'?3.8:.3,.02,stop.axis==='z'?.3:3.8);const pole={...q};pole[other]+=Math.sign(lane)*3.9;batch.add(cylinderGeo,materials.metal,pole.x,1.65,pole.z,.055,3.3,.055);const c=document.createElement('canvas');c.width=c.height=256;const a=c.getContext('2d');a.fillStyle='#bd302c';a.beginPath();a.moveTo(16,24);a.lineTo(240,24);a.lineTo(128,235);a.closePath();a.fill();a.strokeStyle='#fff';a.lineWidth=9;a.stroke();a.fillStyle='white';a.textAlign='center';a.font='bold 49px sans-serif';a.fillText('止まれ',128,91);a.font='32px sans-serif';a.fillText('STOP',128,135);const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;const sg=new T.Mesh(new T.PlaneGeometry(.98,.98),new T.MeshBasicMaterial({map:tex,transparent:true,side:T.DoubleSide}));sg.position.set(pole.x,3.25,pole.z);sg.rotation.y=stop.axis==='x'?-stop.dir*Math.PI/2:stop.dir===1?Math.PI:0;scene.add(sg);}
+ const urban=createUrbanDistrict(scene,batch,materials,network,colliders,sign,tree,house);
  // Rural fields, irrigation channels, orchards and distant mountain ridges.
  const water=mat('#679798',{metalness:.4,roughness:.18});const fields=[mat('#a1a966'),mat('#809557'),mat('#9bab63'),mat('#91a264')];
  for(let x=-220;x<=215;x+=50)for(let z=-585;z< -235;z+=48){const n=nearestRoad(roads,x,z);if(n.distance<35)continue;batch.box(fields[Math.floor(rand()*4)],x,.0,z,44,.06,42);batch.box(water,x+24,.01,z,1.2,.03,46);for(let j=-19;j<21;j+=3)batch.box(materials.leaf[3],x+j,.13,z,.18,.15,40);}
  for(let i=0;i<200;i++){const x=-300+rand()*850,z=-790+rand()*1120;const n=nearestRoad(roads,x,z);if(n.distance<Math.max(15,n.y*1.5+8)||colliders.some(c=>Math.abs(c.x-x)<c.hx+3&&Math.abs(c.z-z)<c.hz+3))continue;if(x>-190&&x<35&&z>-210&&z<210)continue;tree(x,z,.8+rand()*1.3);}
  const mountains=new T.PlaneGeometry(4200,4200,110,110);mountains.rotateX(-Math.PI/2);const mp=mountains.attributes.position;
- for(let i=0;i<mp.count;i++){const x=mp.getX(i),z=mp.getZ(i)-220;const edge=Math.max(Math.abs(x-35)-400,Math.abs(z+220)-650);const blend=T.MathUtils.smoothstep(edge,0,420);const broad=Math.sin(x*.0032+Math.cos(z*.002))*Math.cos(z*.0034);const detail=Math.sin(x*.011+z*.007)*Math.sin(z*.009-x*.005);mp.setXYZ(i,x,blend*(180+135*broad+45*detail)-.2,z);}mountains.computeVertexNormals();const mountainMesh=new T.Mesh(mountains,mat('#637667',{map:scaled(assets.grass,180).map,roughness:1}));mountainMesh.receiveShadow=true;scene.add(mountainMesh);
+ for(let i=0;i<mp.count;i++){const x=mp.getX(i),z=mp.getZ(i)-220;const edge=Math.max(Math.abs(x-70)-600,Math.abs(z+200)-820);const blend=T.MathUtils.smoothstep(edge,0,420);const broad=Math.sin(x*.0032+Math.cos(z*.002))*Math.cos(z*.0034);const detail=Math.sin(x*.011+z*.007)*Math.sin(z*.009-x*.005);mp.setXYZ(i,x,blend*(180+135*broad+45*detail)-.2,z);}mountains.computeVertexNormals();const mountainMesh=new T.Mesh(mountains,mat('#637667',{map:scaled(assets.grass,180).map,roughness:1}));mountainMesh.receiveShadow=true;scene.add(mountainMesh);
 
  // Small rural houses and a torii beside the scenic route.
  for(let i=0;i<7;i++)house(-132-i%2*22,-285-i*42,9,11,5.3,houseIndex++);
@@ -117,5 +122,5 @@ export function createWorld(scene,assets){
  for(let z=-510;z<=-492;z+=3)batch.box(materials.concrete,-27,.1,z,4,.2,2);
  batch.finish();
  const grid=new Map();for(const c of colliders){for(let x=Math.floor((c.x-c.hx)/20);x<=Math.floor((c.x+c.hx)/20);x++)for(let z=Math.floor((c.z-c.hz)/20);z<=Math.floor((c.z+c.hz)/20);z++){const key=x+','+z;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(c);}}
- return {...network,roads,signals,colliders,grid,materials,rural,highway,hill,intersections};
+ return {...network,urban,buildingCount:colliders.filter(c=>c.type==='building').length,roads,signals,colliders,grid,materials,rural,highway,hill,intersections};
 }

@@ -31,7 +31,7 @@ export function renderRoadNetwork(scene,batch,materials,network){
   if(road.highway){for(const side of [-1,0,1]){const pos=[],idx=[];for(let i=0;i<road.samples.length-1;i++){const a=road.samples[i],b=road.samples[i+1];if(!road.hasBarrier(a.d))continue;const width=side?road.widthAt(a.d)/2-.12:0;const base=pos.length/3;for(const p of [a,b]){const x=p.x-p.tz*side*width,z=p.z+p.tx*side*width;pos.push(x,p.y,z,x,p.y+.78,z);}idx.push(base,base+1,base+2,base+1,base+3,base+2);}mesh(pos,idx,materials.barrier);}
    for(let d=110;d<road.length-110;d+=32){const p=sampleRoad(road,d);if(p.y<1)continue;batch.box(materials.concrete,p.x,p.y/2,p.z,1.4,p.y,2.5);batch.box(materials.concrete,p.x,p.y-.35,p.z,16,.6,2.1);}
   }
-  if(road.area==='town'){
+  if(['town','station'].includes(road.area)){
    // Short sidewalk strips stop before each junction; they never cut through a turn.
    for(let d=0;d<road.length-2;d+=3){const a=sampleRoad(road,d),b=sampleRoad(road,d+3),m=sampleRoad(road,d+1.5);if(nearJunction(a)||nearJunction(b))continue;for(const side of [-1,1])ribbon([a,b],side*(road.width/2+1.05),1.9,.14,materials.concrete,sidewalks);}
   }

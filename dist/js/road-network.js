@@ -63,9 +63,18 @@ export function createRoadNetwork(){
  const farmJoin=nearestRoad([rural],-55,-355);
  add('farm-link',[at(-80,-160),at(-80,-240),[farmJoin.x,farmJoin.y,farmJoin.z]],{width:7,limit:30,area:'country',radius:24});
  add('river-road',[at(160,-160),at(170,-275),at(140,-395),at(125,-520),at(210,-665)],{width:9,limit:40,area:'country',radius:42});
+ const station=add('station-avenue',[at(-160,360),at(-80,360),at(0,360),at(80,360),at(160,360),at(235,360)],{area:'station',limit:30});
+ add('station-south',[at(-160,440),at(-80,440),at(0,440),at(80,440),at(160,440),at(235,440)],{area:'station',limit:30});
+ for(const x of [-160,-80,0,80,160,235]){const from=x===235?160:285;const first=x===-160||x===160?sampleRoad(roads.find(r=>r.id==='south-loop'),x===-160?60:roads.find(r=>r.id==='south-loop').length-60):null;add('station-link-'+x,[first?[first.x,first.y,first.z]:at(x,from),at(x,360),at(x,440)],{area:'station',limit:30,radius:20});}
+ add('west-residential',[at(-160,0),at(-280,0),at(-280,285),at(0,285)],{radius:32});
+ add('west-cross',[at(-280,160),at(-160,160)],{});
+ add('east-bypass',[at(235,160),at(390,160),at(490,270),at(480,440),at(235,440)],{radius:45,area:'station',limit:40});
+ add('east-cross',[at(235,360),at(485,360)],{area:'station',limit:30});
  const junctions=[];
  for(const x of [-160,-80,0,160])for(const z of [-160,0,160])junctions.push({x,z,y:.04,radius:8.5,signal:(x===0||x===-160)&&z!==0});
  junctions.push({x:0,z:285,y:.04,radius:8.5},{x:0,z:-240,y:.04,radius:8.5},{x:210,z:-665,y:.04,radius:12});
+ for(const x of [-160,-80,0,80,160,235])for(const z of [360,440])junctions.push({x,z,y:.04,radius:8.5,signal:z===360&&(x===0||x===160)});
+ for(const [x,z]of [[-280,160],[-160,0],[235,160],[235,360],[0,285],[-80,285],[80,285]])if(!junctions.some(q=>q.x===x&&q.z===z))junctions.push({x,z,y:.04,radius:8.5,signal:false});
  // Each route closes on itself. Filleted junction turns avoid endpoint U-turns/teleports.
  const turnRadius=normal=>p=>junctions.some(q=>Math.hypot(q.x-p.x,q.z-p.z)<1)?14:normal;
  const routes=[
@@ -74,11 +83,21 @@ export function createRoadNetwork(){
   makeRoad('south-circuit',[at(0,160),at(-160,160),at(-160,285),at(160,285),at(160,160)],{closed:true,radius:turnRadius(48)}),
   makeRoad('express-circuit',[at(0,160),at(0,0),at(0,-160),...ruralPoints,...highwayPoints.slice(1)],{closed:true,radius:turnRadius(34)}),
   makeRoad('hill-circuit',[...hillPoints,...ruralPoints.slice(0,7).reverse().slice(1),at(0,-160)],{closed:true,radius:p=>junctions.some(q=>Math.hypot(q.x-p.x,q.z-p.z)<1)?14:(p.x<-150||p.z<-700?48:34)}),
-  makeRoad('east-circuit',[at(160,0),at(160,-160),at(235,-160),at(235,0)],{closed:true,radius:turnRadius(32)})
+  makeRoad('east-circuit',[at(160,0),at(160,-160),at(235,-160),at(235,0)],{closed:true,radius:turnRadius(32)}),
+  makeRoad('station-circuit',[at(0,160),at(0,285),at(0,360),at(0,440),at(160,440),at(160,360),at(160,285),at(160,160)],{closed:true,radius:14}),
+  makeRoad('station-east-circuit',[at(235,160),at(390,160),at(490,270),at(480,440),at(235,440),at(235,360)],{closed:true,radius:turnRadius(45)}),
+  makeRoad('station-local-circuit',[at(-80,285),at(-80,360),at(-80,440),at(80,440),at(80,360),at(80,285)],{closed:true,radius:14}),
+  makeRoad('west-circuit',[at(-160,0),at(-280,0),at(-280,285),at(0,285),at(0,160),at(-160,160)],{closed:true,radius:turnRadius(32)}),
+  makeRoad('river-circuit',[at(160,-160),at(170,-275),at(140,-395),at(125,-520),at(210,-665),...ruralPoints.slice(0,7).reverse().slice(1),at(0,-160)],{closed:true,radius:turnRadius(34)}),
+  makeRoad('station-avenue-circuit',[at(-80,360),at(0,360),at(80,360),at(160,360),at(235,360),at(235,440),at(160,440),at(80,440),at(0,440),at(-80,440)],{closed:true,radius:14}),
+  makeRoad('farm-circuit',[at(-80,-160),at(-80,-240),[farmJoin.x,farmJoin.y,farmJoin.z],at(0,-285),at(0,-240),at(0,-160)],{closed:true,radius:14})
  ];
+ // Snap each new connector endpoint to its intended adjoining surface.
+ for(const id of ['east-cross']){const old=roads.find(r=>r.id===id),end=old.points.at(-1),near=nearestRoad(roads.filter(r=>r!==old),end[0],end[2]);old.points[old.points.length-1]=[near.x,near.y,near.z];const replacement=makeRoad(id,old.points,{area:old.area,limit:old.limit});roads[roads.indexOf(old)]=replacement;}
+ const stops=[];for(const [x,z,axis]of [[-80,0,'z'],[160,0,'z'],[-80,360,'z'],[80,360,'z']])for(const dir of [-1,1])stops.push({id:`${x},${z},${axis},${dir}`,x,z,axis,dir,offset:11});
  indexRoads(roads);
- for(const q of junctions){q.corners=[];for(const sx of [-1,1])for(const sz of [-1,1])if(nearestRoad(roads,q.x+sx*18,q.z).distance<3&&nearestRoad(roads,q.x,q.z+sz*18).distance<3)q.corners.push(sx+','+sz);}
+ for(const q of junctions){q.signal=!!q.signal;q.corners=[];for(const sx of [-1,1])for(const sz of [-1,1])if(nearestRoad(roads,q.x+sx*18,q.z).distance<3&&nearestRoad(roads,q.x,q.z+sz*18).distance<3)q.corners.push(sx+','+sz);}
  roads.junctions=junctions;
  for(const route of routes)for(const p of route.samples){const near=nearestRoad(roads,p.x,p.z);p.sourceRoad=near.road;p.sourceD=near.d;}
- return {roads,rural,highway,hill,junctions,routes,totalLength:roads.reduce((s,r)=>s+r.length,0)};
+ return {roads,rural,highway,hill,station,stops,junctions,routes,totalLength:roads.reduce((s,r)=>s+r.length,0)};
 }

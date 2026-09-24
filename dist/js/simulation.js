@@ -40,16 +40,7 @@ export function crossedStopLine(prev,s,intersection,phase){
  const phases=typeof phase==='string'?{z:phase}:phase;
  for(const axis of Object.keys(phases)){if(phases[axis]!=='red')continue;const lateral=axis==='z'?'x':'z';if(Math.abs(s[lateral]-intersection[lateral])>4.6)continue;const delta=s[axis]-prev[axis],center=intersection[axis];if(delta<0&&prev[axis]>center+11&&s[axis]<=center+11)return true;if(delta>0&&prev[axis]<center-11&&s[axis]>=center-11)return true;}return false;
 }
-export class RuleBook {
- constructor(onPenalty){this.time=0;this.cooldowns=new Map();this.timers={speed:0,lane:0,offroad:0};this.onPenalty=onPenalty;}
- penalize(state,key,amount,message,cooldown=6){if((this.cooldowns.get(key)||0)>this.time)return false;state.score=Math.max(0,state.score-amount);this.cooldowns.set(key,this.time+cooldown);this.onPenalty?.(message,amount);return true;}
- tick(dt,s,roadInfo,previous,intersections,phase){this.time+=dt;const speed=Math.abs(s.speed)*3.6;this.timers.speed=speed>roadInfo.road.limit+3?this.timers.speed+dt:0;if(this.timers.speed>2.5){this.penalize(s,'speed',20,'速度超過',6);this.timers.speed=0;}
- const onRoad=roadInfo.onSurface??roadInfo.distance<roadInfo.road.width/2-.3;const headingDot=-Math.sin(s.yaw)*roadInfo.tx-Math.cos(s.yaw)*roadInfo.tz;const wrong=roadInfo.side*headingDot>.7&&onRoad&&speed>9&&Math.abs(headingDot)>.75&&!intersections.some(p=>Math.hypot(p.x-s.x,p.z-s.z)<15);
- this.timers.lane=wrong?this.timers.lane+dt:0;if(this.timers.lane>3){this.penalize(s,'lane',30,'対向車線の走行',7);this.timers.lane=0;}
- this.timers.offroad=!onRoad&&speed>8?this.timers.offroad+dt:0;if(this.timers.offroad>2){this.penalize(s,'offroad',15,'路外走行',7);this.timers.offroad=0;}
- for(const q of intersections)if(q.signal!==false&&crossedStopLine(previous,s,q,phase))this.penalize(s,'signal:'+q.x+','+q.z,80,'赤信号での進入',10);
- }
-}
+export {RuleBook} from './traffic-rules.js';
 
 // The inside wheel follows a tighter radius than the outside wheel.
 export function ackermannAngles(steer, wheelbase=2.65, track=1.8) {
