@@ -7,17 +7,21 @@ const boxGeo = new T.BoxGeometry(1,1,1), cylinderGeo = new T.CylinderGeometry(1,
 const tmp = new T.Object3D();
 class Batch {
  constructor(scene){this.scene=scene;this.items=new Map();}
- add(geo,material,x,y,z,sx=1,sy=1,sz=1,ry=0,rx=0,rz=0){const key=geo.uuid+material.uuid;if(!this.items.has(key))this.items.set(key,{geo,material,matrices:[]});tmp.position.set(x,y,z);tmp.rotation.set(rx,ry,rz);tmp.scale.set(sx,sy,sz);tmp.updateMatrix();this.items.get(key).matrices.push(tmp.matrix.clone());}
+ add(geo,material,x,y,z,sx=1,sy=1,sz=1,ry=0,rx=0,rz=0){const key=geo.uuid+material.uuid+':'+Math.floor(x/100)+','+Math.floor(z/100);if(!this.items.has(key))this.items.set(key,{geo,material,matrices:[]});tmp.position.set(x,y,z);tmp.rotation.set(rx,ry,rz);tmp.scale.set(sx,sy,sz);tmp.updateMatrix();this.items.get(key).matrices.push(tmp.matrix.clone());}
  box(m,x,y,z,sx,sy,sz,ry=0,rx=0,rz=0){this.add(boxGeo,m,x,y,z,sx,sy,sz,ry,rx,rz);}
  finish(){for(const {geo,material,matrices} of this.items.values()){const mesh=new T.InstancedMesh(geo,material,matrices.length);matrices.forEach((m,i)=>mesh.setMatrixAt(i,m));mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();this.scene.add(mesh);}this.items.clear();}
 }
 function texture(kind){const c=document.createElement('canvas');c.width=c.height=128;const a=c.getContext('2d');a.fillStyle=kind==='road'?'#787c7a':kind==='roof'?'#adb2b0':'#b2b6a2';a.fillRect(0,0,128,128);for(let i=0;i<4500;i++){const b=80+rand()*145;a.fillStyle=`rgba(${b},${b},${b},${kind==='road'?.12:.06})`;a.fillRect(rand()*128,rand()*128,1+rand()*2,1+rand()*2);}if(kind==='roof'){a.strokeStyle='#535e6355';a.lineWidth=2;for(let i=0;i<128;i+=16){a.beginPath();a.moveTo(i,0);a.lineTo(i,128);a.stroke();a.beginPath();a.moveTo(0,i);a.lineTo(128,i);a.stroke();}}const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;return t;}
 function signTexture(lines,bg='#246247',fg='#f3f6e9',width=512,height=256){const c=document.createElement('canvas');c.width=width;c.height=height;const ctx=c.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);ctx.strokeStyle=fg;ctx.lineWidth=5;ctx.strokeRect(10,10,width-20,height-20);ctx.fillStyle=fg;ctx.textAlign='center';ctx.textBaseline='middle';lines.forEach((s,i)=>{ctx.font=`500 ${lines.length>1?(i===0?46:29):70}px sans-serif`;ctx.fillText(s,width/2,(i+.5)*height/lines.length,width-40)});return new T.CanvasTexture(c);}
 function roofGeometry(){const v=[-1,0,-1,1,0,-1,0,.8,-1,-1,0,1,0,.8,1,1,0,1,-1,0,-1,0,.8,-1,-1,0,1,0,.8,-1,0,.8,1,-1,0,1,0,.8,-1,1,0,-1,0,.8,1,1,0,-1,1,0,1,0,.8,1];for(let i=0;i<v.length;i+=9){for(let k=0;k<3;k++){const temp=v[i+3+k];v[i+3+k]=v[i+6+k];v[i+6+k]=temp;}}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));g.computeVertexNormals();const uv=[];for(let i=0;i<v.length;i+=3)uv.push(v[i],v[i+2]);g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));return g;}
-export function createWorld(scene){
+export function createWorld(scene,assets){
  const batch=new Batch(scene),colliders=[],roads=[],signals=[];
- const asphaltTex=texture('road');asphaltTex.repeat.set(.55,.55);
- const materials={road:mat('#545b5c',{map:asphaltTex}),ground:mat('#718663',{map:texture('ground')}),concrete:mat('#b7bbb2'),curb:mat('#c6c9c1'),white:mat('#eceada'),yellow:mat('#d5a13c'),metal:mat('#89928c',{metalness:.45,roughness:.55}),dark:mat('#344643'),glass:mat('#6d8587',{metalness:.38,roughness:.18}),wood:mat('#5c5043'),leaf:[mat('#35573c'),mat('#506b41'),mat('#688449'),mat('#789154')],walls:[mat('#d2cec1'),mat('#e3dfd1'),mat('#b7b2a4'),mat('#a3aaa5'),mat('#ddd9c9')],roofs:[mat('#414b54',{map:texture('roof')}),mat('#63534b',{map:texture('roof')}),mat('#52616a',{map:texture('roof')})]};
+ const scaled=(source,x,y=x)=>{const map=source.map.clone();map.repeat.set(x,y);map.needsUpdate=true;const normalMap=source.normalMap?.clone();if(normalMap){normalMap.repeat.set(x,y);normalMap.needsUpdate=true;}return {map,normalMap};};
+ const roadMaps=scaled(assets.road,.22),wallMaps=scaled(assets.plaster,3,2),concreteMaps=scaled(assets.concrete,2,1),roofMaps=scaled(assets.roof,2.1,2.4);
+ const materials={road:mat('#bdc0c2',{...roadMaps,normalScale:new T.Vector2(.45,.45),roughness:.92}),ground:mat('#a8b59b',{...scaled(assets.grass,880),normalScale:new T.Vector2(.28,.28)}),concrete:mat('#b3b1a7',{...concreteMaps,normalScale:new T.Vector2(.2,.2)}),curb:mat('#c6c9c1'),white:mat('#e0e1d4'),yellow:mat('#cda34f'),metal:mat('#82918c',{metalness:.65,roughness:.42}),dark:mat('#283336'),glass:mat('#72929a',{metalness:.82,roughness:.16}),wood:mat('#5d4d3d',{...scaled(assets.bark,2,3)}),leaf:[mat('#607445'),mat('#4c643d'),mat('#859560'),mat('#6b8750')],walls:[mat('#e4ddca',wallMaps),mat('#bec0b6',wallMaps),mat('#a79882',wallMaps),mat('#636967',wallMaps),mat('#d2cbc0',wallMaps)],roofs:[mat('#687878',{...roofMaps,normalScale:new T.Vector2(.6,.6),roughness:.7}),mat('#716659',{...roofMaps,normalScale:new T.Vector2(.6,.6)}),mat('#526263',{...roofMaps,normalScale:new T.Vector2(.6,.6),roughness:.65})]};
+ const foliage=new T.MeshStandardMaterial({map:assets.leaves.map,alphaMap:assets.leaves.alphaMap,alphaTest:.42,side:T.DoubleSide,roughness:1,color:'#a3af88'});
+ const leafPlane=new T.PlaneGeometry(1,1),branchGeo=new T.CylinderGeometry(.35,1,1,7);
+
  const ground=new T.Mesh(new T.PlaneGeometry(4400,4400),materials.ground);ground.rotation.x=-Math.PI/2;ground.position.y=-.04;ground.receiveShadow=true;scene.add(ground);
  const intersections=[{x:0,z:160},{x:0,z:-160},{x:-160,z:160},{x:-160,z:-160},{x:300,z:160}];
  function road(id,points,width,limit,area,{smooth=false,highway=false}={}){
@@ -49,24 +53,50 @@ export function createWorld(scene){
  // Crosswalks, tactile tiles and stop lines.
  for(const q of intersections.slice(0,4)){for(const z of [-8,8])for(let x=-3.8;x<4;x+=1.15)batch.box(materials.white,q.x+x,.083,q.z+z,.65,.02,3.2);for(const x of [-7,7]){batch.box(materials.yellow,q.x+x,.25,q.z+7,1.2,.025,3.2);}batch.box(materials.white,q.x-2.35,.083,q.z+11,3.8,.02,.3);batch.box(materials.white,q.x+2.35,.083,q.z-11,3.8,.02,.3);}
  const roofGeo=roofGeometry();
- function tree(x,z,size=1){batch.add(cylinderGeo,materials.wood,x,1.6*size,z,.18*size,3.2*size,.18*size);for(let j=0;j<5;j++)batch.add(sphereGeo,materials.leaf[Math.floor(rand()*4)],x+(rand()-.5)*2.5*size,(3.1+rand()*2)*size,z+(rand()-.5)*2.5*size,(1.25+rand()*.9)*size,(1.5+rand())*size,(1.2+rand()*.8)*size,rand()*6);}
- function house(x,z,w=9,d=11,h=6.3,index=0){const wall=materials.walls[index%5],roof=materials.roofs[index%3];batch.box(materials.concrete,x,.28,z,w+.3,.55,d+.3);batch.box(wall,x,h/2+.5,z,w,h,d);batch.add(roofGeo,roof,x,h+.5,z,w*.57,2.4,d*.57);colliders.push({x,z,hx:w/2,hz:d/2,type:'building'});
-  for(const side of [-1,1])for(const y of [2.1,4.65])for(const dx of [-w*.28,w*.28]){batch.box(materials.dark,x+dx,y,z+side*(d/2+.025),1.88,1.62,.085);batch.box(materials.glass,x+dx,y,z+side*(d/2+.075),1.66,1.36,.08);batch.box(wall,x+dx,y,z+side*(d/2+.14),.05,1.36,.07);batch.box(wall,x+dx,y,z+side*(d/2+.14),1.7,.04,.07);batch.box(materials.dark,x+dx,y-.89,z+side*(d/2+.25),2,.08,.48);}
-  for(const side of [-1,1])for(const dz of [-d*.26,d*.24]){batch.box(materials.dark,x+side*(w/2+.025),4.65,z+dz,.06,1.65,1.9);batch.box(materials.glass,x+side*(w/2+.075),4.65,z+dz,.08,1.4,1.66);batch.box(wall,x+side*(w/2+.125),4.65,z+dz,.08,1.4,.045);}
-  batch.box(materials.wood,x,1.6,z+d/2+.07,1.2,2.25,.15);batch.box(materials.metal,x+.36,1.5,z+d/2+.17,.07,.2,.06);batch.box(roof,x,2.88,z+d/2+.6,1.8,.12,1.25);
-  // Gutters, outdoor AC units and walled gardens give the houses street scale.
-  for(const side of [-1,1]){batch.box(materials.metal,x+side*w*.56,h+.48,z,.1,.1,d*1.13);batch.box(materials.concrete,x+side*(w/2+2),.7,z,.25,1.4,d+6);batch.add(sphereGeo,materials.leaf[index%4],x+side*(w/2+1.15),1.1,z+d/2+2,1.1,1.3,1.0);}
-  batch.box(materials.concrete,x+w/2+.5,.65,z,1,.7,1.5);batch.box(materials.metal,x+w/2+1.01,.65,z,.03,.53,1.1);
-  for(let j=0;j<3;j++)batch.box(materials.dark,x+w/2+1.04,.65,z+(j-1)*.25,.035,.04,.16);
+ function tree(x,z,size=1){
+  const yaw=rand()*Math.PI*2;
+  batch.add(branchGeo,materials.wood,x,2.0*size,z,.2*size,4*size,.2*size,yaw);
+  for(let j=0;j<5;j++){const angle=yaw+j*2.4;batch.add(branchGeo,materials.wood,x+Math.cos(angle)*.5*size,2.8*size,z+Math.sin(angle)*.5*size,.09*size,2.4*size,.09*size,angle,Math.sin(angle)*.55,Math.cos(angle)*.55);}
+  for(let j=0;j<27;j++){const a=j*2.399,rad=Math.sqrt((j+.5)/27)*2.3*size;const px=x+Math.cos(a)*rad,pz=z+Math.sin(a)*rad,py=(4.6+Math.sin(j*4.8)*.5-rad*.21)*size;batch.add(leafPlane,foliage,px,py,pz,2.3*size,2.1*size,1,a,Math.sin(j)*.75,Math.cos(j)*.45);}
  }
+ function house(x,z,w=9,d=11,h=6.3,index=0){
+  const isModern=index%4===1,isShop=index%11===0;const wall=materials.walls[index%5],roof=materials.roofs[index%3];
+  let yaw=0;if(z>170)yaw=Math.PI;else if(z> -165){yaw=(x===-140||x>0)?-Math.PI/2:Math.PI/2;}
+  const cos=Math.cos(yaw),sin=Math.sin(yaw);
+  const B=(m,px,py,pz,sx,sy,sz,ry=0,rx=0,rz=0)=>batch.box(m,x+px*cos+pz*sin,py,z-px*sin+pz*cos,sx,sy,sz,yaw+ry,rx,rz);
+  const A=(geo,m,px,py,pz,sx,sy,sz,ry=0)=>batch.add(geo,m,x+px*cos+pz*sin,py,z-px*sin+pz*cos,sx,sy,sz,yaw+ry);
+  B(materials.concrete,0,.24,0,w+.3,.46,d+.3);B(wall,0,h/2+.4,0,w,h,d);
+  if(isModern){B(materials.dark,0,h+.4,0,w+.45,.2,d+.45);B(materials.walls[3],-w*.28,h*.65,0,w*.42,h*.73,d+.07);B(materials.concrete,0,h+.1,0,w+.5,.11,d+.5);}
+  else{A(roofGeo,roof,0,h+.4,0,w*.56,2.5,d*.57);B(roof,0,h+2.45,0,.23,.22,d*1.15);for(const side of [-1,1])B(materials.dark,side*w*.56,h+.37,0,.13,.13,d*1.15);}
+  const hx=Math.abs(cos)*w/2+Math.abs(sin)*d/2,hz=Math.abs(sin)*w/2+Math.abs(cos)*d/2;colliders.push({x,z,hx,hz,type:'building'});
+  // Glazed sliding windows with recessed frames, curtains, sills and shutters.
+  for(const side of [-1,1])for(const y of [2.0,4.75])for(const dx of [-w*.28,w*.27]){
+   const ww=isModern?2.2:1.82,wh=y>3?1.42:1.7;
+   B(materials.dark,dx,y,side*(d/2+.022),ww+.15,wh+.13,.09);B(materials.glass,dx,y,side*(d/2+.08),ww,wh,.035);
+   B(materials.metal,dx,y,side*(d/2+.11),.043,wh,.027);B(materials.metal,dx,y-wh/2,side*(d/2+.15),ww+.2,.065,.3);
+   if(index%3!==0)for(const v of [-1,1])B(materials.walls[(index+2)%5],dx+v*(ww/2-.24),y,side*(d/2+.10),.38,wh-.08,.014);
+   if(!isModern)B(materials.wood,dx+ww*.72,y,side*(d/2+.12),.55,wh+.17,.095);
+  }
+  for(const side of [-1,1])for(const dz of [-d*.28,d*.23]){B(materials.dark,side*(w/2+.035),4.7,dz,.065,1.5,1.85);B(materials.glass,side*(w/2+.08),4.7,dz,.04,1.34,1.7);B(materials.metal,side*(w/2+.105),4.7,dz,.025,1.34,.04);}
+  B(materials.wood,0,1.59,d/2+.07,1.28,2.37,.15);B(materials.dark,0,1.59,d/2+.15,.84,1.85,.022);for(let q=-3;q<=3;q++)B(materials.wood,q*.13,1.59,d/2+.18,.065,1.9,.035);
+  B(materials.metal,.4,1.5,d/2+.21,.035,.36,.04);B(materials.concrete,0,.16,d/2+.7,2.3,.32,1.35);B(roof,0,2.91,d/2+.67,2.1,.14,1.45);
+  // Rain gutter, downpipe, exterior lights and balcony.
+  for(const side of [-1,1]){B(materials.metal,side*(w/2+.08),h*.5+.3,d*.43,.07,h,.08);B(materials.concrete,side*(w/2+1.4),.52,0,.2,1.04,d+2);}
+  if(index%3===0){B(materials.dark,w*.17,3.85,d/2+.67,w*.6,.13,1.6);B(materials.dark,w*.17,4.4,d/2+1.4,w*.6,1.0,.11);for(let k=-2;k<=2;k++)B(materials.metal,w*.17+k*w*.105,4.4,d/2+1.48,.035,.85,.04);}
+  B(materials.concrete,w/2+.48,.77,-d*.15,.86,.68,1.2);B(materials.metal,w/2+.93,.77,-d*.15,.026,.49,.99);for(let q=0;q<4;q++)B(materials.dark,w/2+.95,.59+q*.11,-d*.15,.01,.035,.85);
+  B(materials.dark,-1.4,2.23,d/2+.13,.13,.32,.13);B(materials.white,-1.4,2.23,d/2+.2,.09,.22,.07);
+  B(materials.wood,-w*.34,.73,d/2+1.1,.58,.38,.36);B(materials.metal,-w*.34,.32,d/2+1.1,.065,.58,.065);
+  if(isShop){B(materials.dark,0,1.76,d/2+.11,w*.7,2.45,.07);B(materials.glass,0,1.76,d/2+.16,w*.64,2.2,.04);B(materials.roofs[1],0,3.14,d/2+.7,w*.89,.16,1.55);}
+  const frontX=x+(d/2+2.2)*sin,frontZ=z+(d/2+2.2)*cos;tree(frontX-w*.42*cos,frontZ+w*.42*sin,.48);
+ }
+
  let houseIndex=0;
  for(const x of [-19,20,-140,-179])for(let z=-128;z<=128;z+=28){house(x+(rand()-.5)*2,z,8+rand()*3,9+rand()*3,5.2+rand()*1.3,houseIndex++);if(houseIndex%2===0)tree(x+(x<0?-9:9),z+9,.9);}
  for(const z of [-184,184])for(let x=-130;x<-20;x+=27){house(x,z,9,10,5.6,houseIndex++);}
  for(let z=-125;z<=124;z+=40)for(const x of [-75,-110])house(x,z,11,12,6.2,houseIndex++);
  // Window shutters, balconies, storm drains and a few modern flat-roof houses.
  for(let z=-115;z<140;z+=28){for(const x of [-5.55,5.55]){batch.box(materials.dark,x,.227,z,.48,.015,.75);for(let k=-2;k<=2;k++)batch.box(materials.metal,x+k*.085,.241,z,.028,.01,.66);}batch.box(materials.concrete,-7,.23,z,1.6,.02,.07);batch.box(materials.concrete,7,.23,z,1.6,.02,.07);}
- for(let z=-100;z<140;z+=56){const x=20;batch.box(materials.concrete,x,3.9,z+6,5.2,.18,1.6);for(const dx of [-2.5,2.5])batch.box(materials.metal,x+dx,4.3,z+6.7,.045,.9,.05);batch.box(materials.metal,x,4.75,z+6.7,5.2,.05,.05);for(let dx=-2.4;dx<=2.4;dx+=.35)batch.box(materials.metal,x+dx,4.35,z+6.7,.028,.8,.03);batch.box(materials.dark,x-4.5,1.03,z+7,.4,.3,.3);batch.add(cylinderGeo,materials.metal,x-4.5,.5,z+7,.03,.8,.03);}
- for(let z=-103;z<135;z+=84){batch.box(materials.glass,-19,8.1,z,4.4,.06,3.2,0,0,-.29);batch.add(cylinderGeo,materials.metal,-17,8.5,z+1,.02,2,.02);batch.box(materials.metal,-17,9.35,z+1,1.4,.025,.03);}
+ for(let z=-125;z<135;z+=28){for(const side of [-1,1]){const x=side*10.2;for(let q=-4;q<=4;q++)batch.box(materials.wood,x,1.02,z+q*.35,.08,1.65,.08);batch.box(materials.wood,x,1.45,z,.09,.075,3.1);batch.box(materials.wood,x,.56,z,.09,.075,3.1);}}
  // Local convenience store, covered tram stops, utility poles and wires.
  const storeMat=mat('#ecede3'),storeGreen=mat('#338c70');batch.box(storeMat,26,2.5,-129,20,5,13);colliders.push({x:26,z:-129,hx:10,hz:6.5,type:'building'});batch.box(materials.glass,26,2.2,-122.4,18,3.6,.1);batch.box(storeGreen,26,4.7,-122.3,21,.55,.3);batch.box(materials.white,26,4.22,-122.3,21,.18,.3);
  function sign(x,y,z,lines,bg,w=6,h=3,ry=0){const tex=signTexture(lines,bg);tex.colorSpace=T.SRGBColorSpace;const m=new T.MeshBasicMaterial({map:tex,side:T.DoubleSide});const mesh=new T.Mesh(new T.PlaneGeometry(w,h),m);mesh.position.set(x,y,z);mesh.rotation.y=ry;scene.add(mesh);return mesh;}
@@ -88,7 +118,7 @@ export function createWorld(scene){
  for(let x=-220;x<=215;x+=50)for(let z=-585;z< -235;z+=48){const n=nearestRoad(roads,x,z);if(n.distance<35)continue;batch.box(fields[Math.floor(rand()*4)],x,.0,z,44,.06,42);batch.box(water,x+24,.01,z,1.2,.03,46);for(let j=-19;j<21;j+=3)batch.box(materials.leaf[3],x+j,.13,z,.18,.15,40);}
  for(let i=0;i<200;i++){const x=-300+rand()*850,z=-790+rand()*1120;const n=nearestRoad(roads,x,z);if(n.distance<13||colliders.some(c=>Math.abs(c.x-x)<c.hx+3&&Math.abs(c.z-z)<c.hz+3))continue;if(x>-190&&x<35&&z>-210&&z<210)continue;tree(x,z,.8+rand()*1.3);}
  const mountains=new T.PlaneGeometry(4200,4200,110,110);mountains.rotateX(-Math.PI/2);const mp=mountains.attributes.position;
- for(let i=0;i<mp.count;i++){const x=mp.getX(i),z=mp.getZ(i)-220;const edge=Math.max(Math.abs(x-35)-400,Math.abs(z+220)-650);const blend=T.MathUtils.smoothstep(edge,0,420);const broad=Math.sin(x*.0032+Math.cos(z*.002))*Math.cos(z*.0034);const detail=Math.sin(x*.011+z*.007)*Math.sin(z*.009-x*.005);mp.setXYZ(i,x,blend*(180+135*broad+45*detail)-.2,z);}mountains.computeVertexNormals();const mountainMesh=new T.Mesh(mountains,mat('#5a7866',{roughness:1}));mountainMesh.receiveShadow=true;scene.add(mountainMesh);
+ for(let i=0;i<mp.count;i++){const x=mp.getX(i),z=mp.getZ(i)-220;const edge=Math.max(Math.abs(x-35)-400,Math.abs(z+220)-650);const blend=T.MathUtils.smoothstep(edge,0,420);const broad=Math.sin(x*.0032+Math.cos(z*.002))*Math.cos(z*.0034);const detail=Math.sin(x*.011+z*.007)*Math.sin(z*.009-x*.005);mp.setXYZ(i,x,blend*(180+135*broad+45*detail)-.2,z);}mountains.computeVertexNormals();const mountainMesh=new T.Mesh(mountains,mat('#637667',{map:scaled(assets.grass,180).map,roughness:1}));mountainMesh.receiveShadow=true;scene.add(mountainMesh);
 
  // Small rural houses and a torii beside the scenic route.
  for(let i=0;i<7;i++)house(-132-i%2*22,-285-i*42,9,11,5.3,houseIndex++);
