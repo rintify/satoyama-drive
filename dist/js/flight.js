@@ -1,4 +1,4 @@
-import {clamp} from './simulation.js?v=9';
+import {clamp} from './simulation.js?v=10';
 const G=9.81;
 // Accessible fixed-wing game model: aerodynamic lift, drag and coordinated turns.
 // Speeds are m/s; pitch is nose-up, bank is right-wing-down, all angles in radians.

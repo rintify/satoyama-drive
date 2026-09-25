@@ -1,8 +1,10 @@
 import * as T from '../vendor/three.module.js';
-import {createRoadNetwork,nearestRoad,sampleRoad} from './road-network.js?v=9';
-import {createUrbanDistrict} from './urban.js?v=9';
-import {renderRoadNetwork} from './road-renderer.js?v=9';
-export {nearestRoad,sampleRoad} from './road-network.js?v=9';
+import {createRoadNetwork,nearestRoad,sampleRoad} from './road-network.js?v=10';
+import {createExpansion} from './expansion.js?v=10';
+import {waterBed,waterDistance} from './waterways.js?v=10';
+import {createUrbanDistrict} from './urban.js?v=10';
+import {renderRoadNetwork} from './road-renderer.js?v=10';
+export {nearestRoad,sampleRoad} from './road-network.js?v=10';
 export const WORLD_SEED = 427;
 let seed = WORLD_SEED;
 const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
@@ -30,7 +32,7 @@ export function createWorld(scene,assets){
  const foliage=new T.MeshStandardMaterial({map:assets.leaves.map,alphaMap:assets.leaves.alphaMap,alphaTest:.42,side:T.DoubleSide,roughness:1,color:'#a3af88'});
  const leafPlane=new T.PlaneGeometry(1,1),branchGeo=new T.CylinderGeometry(.35,1,1,7);
 
- const ground=new T.Mesh(new T.PlaneGeometry(4400,4400),materials.ground);ground.rotation.x=-Math.PI/2;ground.position.y=-.04;ground.receiveShadow=true;scene.add(ground);
+ const ground=new T.Mesh(new T.PlaneGeometry(4400,4400,220,220),materials.ground);ground.geometry.rotateX(-Math.PI/2);const gp=ground.geometry.attributes.position;for(let i=0;i<gp.count;i++)gp.setY(i,waterBed(gp.getX(i),gp.getZ(i)));ground.geometry.computeVertexNormals();ground.receiveShadow=true;scene.add(ground);
  const intersections=junctions.filter(j=>j.signal);
  materials.barrier=materials.concrete.clone();materials.barrier.side=T.DoubleSide;materials.curb.side=T.DoubleSide;
  materials.bank=mat('#a3ad86',{...scaled(assets.grass,.2),side:T.DoubleSide});
@@ -116,13 +118,14 @@ export function createWorld(scene,assets){
  for(let x=-220;x<=215;x+=50)for(let z=-585;z< -235;z+=48){const n=nearestRoad(roads,x,z);if(n.distance<35)continue;batch.box(fields[Math.floor(rand()*4)],x,.0,z,44,.06,42);batch.box(water,x+24,.01,z,1.2,.03,46);for(let j=-19;j<21;j+=3)batch.box(materials.leaf[3],x+j,.13,z,.18,.15,40);}
  for(let i=0;i<200;i++){const x=-300+rand()*850,z=-790+rand()*1120;const n=nearestRoad(roads,x,z);if(n.distance<Math.max(15,n.y*1.5+8)||colliders.some(c=>Math.abs(c.x-x)<c.hx+3&&Math.abs(c.z-z)<c.hz+3))continue;if(x>-190&&x<35&&z>-210&&z<210)continue;tree(x,z,.8+rand()*1.3);}
  const mountains=new T.PlaneGeometry(4200,4200,110,110);mountains.rotateX(-Math.PI/2);const mp=mountains.attributes.position;
- for(let i=0;i<mp.count;i++){const x=mp.getX(i),z=mp.getZ(i)-220;const edge=Math.max(Math.abs(x-70)-600,Math.abs(z+200)-820);const blend=T.MathUtils.smoothstep(edge,0,420);const broad=Math.sin(x*.0032+Math.cos(z*.002))*Math.cos(z*.0034);const detail=Math.sin(x*.011+z*.007)*Math.sin(z*.009-x*.005);mp.setXYZ(i,x,blend*(180+135*broad+45*detail)-.2,z);}mountains.computeVertexNormals();const mountainMesh=new T.Mesh(mountains,mat('#637667',{map:scaled(assets.grass,180).map,roughness:1}));mountainMesh.receiveShadow=true;scene.add(mountainMesh);
+ for(let i=0;i<mp.count;i++){const x=mp.getX(i),z=mp.getZ(i)-220;const edge=Math.max(Math.abs(x-70)-600,Math.abs(z+200)-820);const blend=T.MathUtils.smoothstep(edge,0,420);const broad=Math.sin(x*.0032+Math.cos(z*.002))*Math.cos(z*.0034);const detail=Math.sin(x*.011+z*.007)*Math.sin(z*.009-x*.005);mp.setXYZ(i,x,waterDistance(x,z)<18?waterBed(x,z)-.4:blend*(180+135*broad+45*detail)-.2,z);}mountains.computeVertexNormals();const mountainMesh=new T.Mesh(mountains,mat('#637667',{map:scaled(assets.grass,180).map,roughness:1}));mountainMesh.receiveShadow=true;scene.add(mountainMesh);
 
  // Small rural houses and a torii beside the scenic route.
  for(let i=0;i<7;i++)house(-132-i%2*22,-285-i*42,9,11,5.3,houseIndex++);
  const red=mat('#a64830');for(const x of [-30,-24])batch.add(cylinderGeo,red,x,3.1,-527,.26,6.2,.26);batch.box(red,-27,5.6,-527,9,.38,.48);batch.box(materials.dark,-27,6.35,-527,10,.35,.8);
  for(let z=-510;z<=-492;z+=3)batch.box(materials.concrete,-27,.1,z,4,.2,2);
+ const expansion=createExpansion(scene,batch,materials,network,colliders,sign,streetLights,nightMaterials,assets);
  batch.finish();
  const grid=new Map();for(const c of colliders){for(let x=Math.floor((c.x-c.hx)/20);x<=Math.floor((c.x+c.hx)/20);x++)for(let z=Math.floor((c.z-c.hz)/20);z<=Math.floor((c.z+c.hz)/20);z++){const key=x+','+z;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(c);}}
- return {...network,urban,streetLights,nightMaterials,buildingCount:colliders.filter(c=>c.type==='building').length,roads,signals,colliders,grid,materials,rural,highway,hill,intersections};
+ return {...network,urban,expansion,streetLights,nightMaterials,buildingCount:colliders.filter(c=>c.type==='building').length,roads,signals,colliders,grid,materials,rural,highway,hill,intersections};
 }

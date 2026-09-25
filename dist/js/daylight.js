@@ -40,8 +40,8 @@ export function createDaylight(scene,renderer,assets,sun,ambient,world,car,traff
   lightTimer+=dt;if(lightTimer>=.2||Math.abs(night-lastNight)>.02){lightTimer=0;lastNight=night;
    for(const c of [car,...traffic.cars.map(c=>c.model)])c.setNight(night);
    for(const {material,day=0,night:power}of world.nightMaterials)material.emissiveIntensity=day+(power-day)*night;
-   const nearest=world.streetLights.map(p=>({p,d:(p.x-state.x)**2+(p.z-state.z)**2})).filter(v=>v.d<55**2).sort((a,b)=>a.d-b.d).slice(0,lamps.length);
-   lamps.forEach((light,i)=>{const v=nearest[i];light.intensity=v?95*night:0;if(v)light.position.set(v.p.x,v.p.y,v.p.z);});
+   const nearest=world.streetLights.map(p=>({p,d:(p.x-state.x)**2+(p.z-state.z)**2+(p.y-state.y-2)**2})).filter(v=>v.d<55**2).sort((a,b)=>a.d-b.d).slice(0,lamps.length);
+   lamps.forEach((light,i)=>{const v=nearest[i];light.intensity=v?95*(v.p.indoor?Math.max(.6,night):night):0;if(v)light.position.set(v.p.x,v.p.y,v.p.z);});
   }
  }};
 }

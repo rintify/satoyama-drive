@@ -1,5 +1,5 @@
 import * as T from '../vendor/three.module.js';
-import {sampleRoad,nearestRoad} from './road-network.js?v=9';
+import {sampleRoad,nearestRoad} from './road-network.js?v=10';
 
 // Surface and paint share the same sampled, height-aware ribbon. UVs are world
 // aligned, so intersecting asphalt meshes cannot produce rotated texture seams.
@@ -18,20 +18,22 @@ export function renderRoadNetwork(scene,batch,materials,network){
   for(let d=0;d<road.length-1;d+=2){const p=sampleRoad(road,d+1),width=road.widthAt(d),crossing=nearJunction(p);
    if(!crossing){for(const side of [-1,1])mark(d,2.04,side*road.edgeLineAt(d),.105);
     if(road.highway&&road.hasBarrier(d)){if(Math.floor(d/2)%5<3)for(const side of [-1,1])mark(d,2,side*3.8,.12);}
-    else if(road.area==='hill'||road.id==='rural')mark(d,2.03,0,.13,'yellow');
+    else if(road.lanes>1){if(!road.oneWay)mark(d,2.03,0,.13,'yellow');if(Math.floor(d/2)%4<2){const count=road.oneWay?road.lanes:road.lanes*2;for(let k=1;k<count;k++)if(road.oneWay||k!==road.lanes)mark(d,2,-width/2+k*width/count,.12);}}
+    else if(road.area==='hill'||road.area==='mountain'||road.id==='rural')mark(d,2.03,0,.13,'yellow');
     else if(Math.floor(d/2)%4<2)mark(d,2,0,.12);
    }
   }
+  if(road.oneWay){for(let d=18;d<road.length;d+=48){const p=sampleRoad(road,d),yaw=Math.atan2(-p.tx,-p.tz);for(let lane=0;lane<road.lanes;lane++){const off=-road.width/2+(lane+.5)*road.width/road.lanes,x=p.x-p.tz*off,z=p.z+p.tx*off;batch.box(materials.white,x,p.y+.025,z,.16,.025,3.2,yaw);for(const side of [-1,1])batch.box(materials.white,x+p.tx*1.5-p.tz*side*.4,p.y+.025,z+p.tz*1.5+p.tx*side*.4,.15,.025,1.15,yaw+side*.7);}}}
   for(const [color,b]of Object.entries(paint))mesh(b.pos,b.idx,materials[color]);
   // Asphalt shoulders blend into a grass embankment on the hill road.
-  if(!road.highway){for(const side of [-1,1]){
+  if(!road.highway&&road.area!=='coast'){for(const side of [-1,1]){
    const pos=[],idx=[];for(let i=0;i<road.samples.length;i++){const p=road.samples[i],nx=-p.tz*side,nz=p.tx*side,half=road.width/2,bank=Math.max(3,p.y*1.5);pos.push(p.x+nx*half,p.y-.01,p.z+nz*half,p.x+nx*(half+bank),-.035,p.z+nz*(half+bank));if(i){const j=i*2;idx.push(j-2,j-1,j,j-1,j+1,j);}}
    const m=mesh(pos,idx,materials.ground);if(m)m.material=materials.bank;
   }}
   if(road.highway){for(const side of [-1,0,1]){const pos=[],idx=[];for(let i=0;i<road.samples.length-1;i++){const a=road.samples[i],b=road.samples[i+1];if(!road.hasBarrier(a.d))continue;const width=side?road.widthAt(a.d)/2-.12:0;const base=pos.length/3;for(const p of [a,b]){const x=p.x-p.tz*side*width,z=p.z+p.tx*side*width;pos.push(x,p.y,z,x,p.y+.78,z);}idx.push(base,base+1,base+2,base+1,base+3,base+2);}mesh(pos,idx,materials.barrier);}
    for(let d=110;d<road.length-110;d+=32){const p=sampleRoad(road,d);if(p.y<1)continue;batch.box(materials.concrete,p.x,p.y/2,p.z,1.4,p.y,2.5);batch.box(materials.concrete,p.x,p.y-.35,p.z,16,.6,2.1);}
   }
-  if(['town','station'].includes(road.area)){
+  if(['town','station','mall'].includes(road.area)){
    // Short sidewalk strips stop before each junction; they never cut through a turn.
    for(let d=0;d<road.length-2;d+=3){const a=sampleRoad(road,d),b=sampleRoad(road,d+3),m=sampleRoad(road,d+1.5);if(nearJunction(a)||nearJunction(b))continue;for(const side of [-1,1])ribbon([a,b],side*(road.width/2+1.05),1.9,.14,materials.concrete,sidewalks);}
   }

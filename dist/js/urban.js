@@ -1,5 +1,5 @@
 import * as T from '../vendor/three.module.js';
-import {nearestRoad,sampleRoad} from './road-network.js?v=9';
+import {nearestRoad,sampleRoad} from './road-network.js?v=10';
 export function createUrbanDistrict(scene,batch,m,network,colliders,sign,tree,house,streetLights,nightMaterials){
  const pavement=new T.MeshStandardMaterial({color:'#8c9292',roughness:.95}),stone=new T.MeshStandardMaterial({color:'#c1c5c4',roughness:.85}),office=new T.MeshStandardMaterial({color:'#8b9da3',metalness:.65,roughness:.2}),frame=new T.MeshStandardMaterial({color:'#434d54',metalness:.5,roughness:.35}),warm=new T.MeshStandardMaterial({color:'#dcc3a1',emissive:'#927440',emissiveIntensity:.16}),blue=new T.MeshStandardMaterial({color:'#234c68',roughness:.6}),orange=new T.MeshStandardMaterial({color:'#d47b40',roughness:.6});
  office.emissive.set('#a4bacf');nightMaterials.push({material:warm,day:.16,night:1.2},{material:office,night:.065});

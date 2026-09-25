@@ -1,27 +1,29 @@
-import {sampleRoad,nearestRoad} from './road-network.js?v=9';
-import {clamp} from './simulation.js?v=9';
+import {sampleRoad,nearestRoad} from './road-network.js?v=10';
+import {clamp} from './simulation.js?v=10';
 const wrap=(d,length)=>((d%length)+length)%length;
 const smooth=t=>t*t*(3-2*t);
-export function createAgent(route,d,dir=1,cruise=14){return {route,d,dir,cruise,speed:0,lane:0,targetLane:0,laneFrom:0,laneTime:3,passTime:0,signal:0,x:0,y:0,z:0,yaw:0,braking:false};}
+const laneWidth=r=>r.highway?3.7:r.width/(r.oneWay?r.lanes:2*r.lanes);
+const drivingLane=(r,d)=>r.highway?Math.max(2.18,r.widthAt(d)/2-2.35):r.lanes>1?r.width/2-laneWidth(r)/2:Math.min(2.18,r.width/4);
+export function createAgent(route,d,dir=1,cruise=14){return {route,d,dir:route.oneWay?1:dir,cruise,speed:0,lane:0,targetLane:0,laneFrom:0,laneTime:3,passTime:0,signal:0,x:0,y:0,z:0,yaw:0,braking:false};}
 export function positionAgent(c,roads){
- const p=sampleRoad(c.route,c.d),roadInfo=nearestRoad(roads,p.x,p.z);
+ const p=sampleRoad(c.route,c.d),roadInfo=c.route.sourceRoad?{road:c.route.sourceRoad,d:p.d,y:p.y,grade:p.grade}:nearestRoad(roads,p.x,p.z);
  c.road=roadInfo.road;c.roadD=roadInfo.d;c.fx=p.tx*c.dir;c.fz=p.tz*c.dir;
- const width=c.road.widthAt(c.roadD),normalLane=c.road.highway?Math.max(2.18,width/2-2.35):Math.min(2.18,width/4);
- const lane=c.emergency?(c.road.highway?1.95:(width>=8?.25:-.15)):normalLane+(1.95-normalLane)*c.lane+(c.yieldShift||0);
+ const width=c.road.widthAt(c.roadD),normalLane=drivingLane(c.road,c.roadD);
+ const lane=c.emergency?(c.road.highway?1.95:(width>=8?.25:-.15)):normalLane-laneWidth(c.road)*c.lane+(c.yieldShift||0);
  c.x=p.x+p.tz*c.dir*lane;c.z=p.z-p.tx*c.dir*lane;c.y=roadInfo.y;
  c.yaw=Math.atan2(-c.fx,-c.fz);c.grade=roadInfo.grade*(p.tx*roadInfo.tx+p.tz*roadInfo.tz)*c.dir;
- c.canPass=c.road.highway&&c.road.hasBarrier(c.roadD)&&c.roadD>155&&c.roadD<c.road.length-155;
+ c.canPass=c.road.highway?c.road.hasBarrier(c.roadD)&&c.roadD>155&&c.roadD<c.road.length-155:c.road.lanes>1;
  return c;
 }
 function relative(c,o){const dx=o.x-c.x,dz=o.z-c.z;return {along:dx*c.fx+dz*c.fz,side:dx*(-c.fz)+dz*c.fx,speed:('fx'in o?o.fx*o.speed:-Math.sin(o.yaw||0)*(o.speed||0))*c.fx+('fz'in o?o.fz*o.speed:-Math.cos(o.yaw||0)*(o.speed||0))*c.fz};}
 export function laneClear(c,obstacles,targetLane){
- const desiredSide=(targetLane-c.lane)*3.7;
+ const desiredSide=(targetLane-c.lane)*laneWidth(c.road);
  return !obstacles.some(o=>{if(o===c||Math.abs((o.y||0)-c.y)>2.5)return false;const r=relative(c,o);if(Math.abs(r.side-desiredSide)>2.05)return false;const rearGap=Math.max(18,(r.speed-c.speed)*3.5+12),frontGap=Math.max(18,c.speed*1.1);return r.along>-rearGap&&r.along<frontGap;});
 }
 export function planAgent(c,obstacles,people,junctions,phase,dt,stops=[]){
  let limit=Math.min(c.cruise,c.road.limit/3.6*(c.emergency?1.5:.94)),leader=null,gap=Infinity;
  const rescue=obstacles.find(o=>o.emergency&&o!==c&&Math.cos(o.yaw-c.yaw)>.6&&Math.abs((o.y||0)-c.y)<2.5&&relative(c,o).along<8&&relative(c,o).along>-75&&Math.abs(relative(c,o).side)<5);
- const width=c.road.widthAt(c.roadD),normal=c.road.highway?Math.max(2.18,width/2-2.35):Math.min(2.18,width/4),edge=c.road.edgeLineAt?.(c.roadD)??width/2-.25;
+ const width=c.road.widthAt(c.roadD),normal=drivingLane(c.road,c.roadD),edge=c.road.edgeLineAt?.(c.roadD)??width/2-.25;
  const yieldTarget=rescue?Math.max(0,Math.min(.85,edge-.88-.12-normal)):0;c.yieldShift=(c.yieldShift||0)+(yieldTarget-(c.yieldShift||0))*(1-Math.exp(-dt*1.4));if(rescue){limit=Math.min(limit,2);c.targetLane=0;c.laneFrom=c.lane;c.laneTime=Math.min(c.laneTime,2.8);c.signal=-1;}
 
  for(const o of obstacles){if(o===c||Math.abs((o.y||0)-c.y)>2.5)continue;const r=relative(c,o);if(r.along>0&&r.along<140&&Math.abs(r.side)<2.05&&r.along<gap){leader=r;gap=r.along;}}
@@ -53,7 +55,7 @@ export function closestTrafficRoute(cars,state){
 }
 export function rearTraffic(cars,state){const fx=-Math.sin(state.yaw),fz=-Math.cos(state.yaw);return cars.filter(c=>!c.destroyed).map(c=>{const dx=c.x-state.x,dz=c.z-state.z;return {car:c,behind:-(dx*fx+dz*fz),side:Math.abs(dx*-fz+dz*fx)};}).filter(v=>v.behind>3&&v.behind<150&&v.side<7&&Math.cos(v.car.yaw-state.yaw)>.5&&Math.abs(v.car.y-(state.y||0))<4).sort((a,b)=>a.behind-b.behind)[0]||null;}
 export function seedFollowers(cars,state,roads,{distant=false}={}){
- const match=closestTrafficRoute(cars,state);if(!match||match.q.distance>10)return 0;const {route,q}=match,p=sampleRoad(route,q.d),dir=(-Math.sin(state.yaw)*p.tx-Math.cos(state.yaw)*p.tz)>0?1:-1;
+ const match=closestTrafficRoute(cars,state);if(!match||match.q.distance>10)return 0;const {route,q}=match,p=sampleRoad(route,q.d),dir=route.oneWay?1:(-Math.sin(state.yaw)*p.tx-Math.cos(state.yaw)*p.tz)>0?1:-1;
  const pool=cars.filter(c=>!c.destroyed&&(!distant||Math.hypot(c.x-state.x,c.z-state.z)>280)).sort((a,b)=>Math.hypot(b.x-state.x,b.z-state.z)-Math.hypot(a.x-state.x,a.z-state.z));
  let placed=0;for(const gap of distant?[180,230]:[18,43,80]){const c=pool.shift();if(!c)break;const old={...c};c.homeRoute??=c.route;c.route=route;c.dir=dir;c.d=wrap(q.d-dir*gap,route.length);c.lane=c.targetLane=c.laneFrom=0;c.laneTime=3;c.passTime=0;c.signal=0;c.speed=distant?Math.max(7,Math.abs(state.speed)):0;c.cruise=23+placed;positionAgent(c,roads);
  if(cars.some(o=>!o.destroyed&&o!==c&&Math.abs((o.x-c.x)*c.fx+(o.z-c.z)*c.fz)<9&&Math.abs((o.x-c.x)*-c.fz+(o.z-c.z)*c.fx)<2.3&&Math.abs(o.y-c.y)<3)){Object.assign(c,old);continue;}placed++;}

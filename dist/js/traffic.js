@@ -1,11 +1,11 @@
 import * as T from '../vendor/three.module.js';
-import {createCar,createPerson,createTram} from './vehicle.js?v=9';
-import {createAgent,positionAgent,stepTraffic,seedFollowers,rearTraffic} from './traffic-ai.js?v=9';
-import {clamp} from './simulation.js?v=9';
+import {createCar,createPerson,createTram} from './vehicle.js?v=10';
+import {createAgent,positionAgent,stepTraffic,seedFollowers,rearTraffic} from './traffic-ai.js?v=10';
+import {clamp} from './simulation.js?v=10';
 export function createTraffic(scene,world){
  const cars=[],people=[];const colors=['#dadcd2','#879791','#455964','#b8afa0','#563c3b','#cbd6d7'];
  const counts=[6,6,5,10,5,4,8,5,6,5,5,6,4];
- world.routes.forEach((route,r)=>{for(let i=0;i<counts[r];i++){const model=createCar(colors[(i+r)%colors.length],{van:i%4===0});scene.add(model.root);model.interior.visible=false;const c=createAgent(route,route.length*(i+.25)/counts[r],i%2?1:-1,route.id==='express-circuit'?19+i%4*1.4:11+i%3);c.model=model;c.homeRoute=route;positionAgent(c,world.roads);cars.push(c);}});
+ world.routes.forEach((route,r)=>{for(let i=0;i<(counts[r]||8);i++){const model=createCar(colors[(i+r)%colors.length],{van:i%4===0});scene.add(model.root);model.interior.visible=false;const c=createAgent(route,route.length*(i+.25)/(counts[r]||8),i%2?1:-1,route.id==='express-circuit'?19+i%4*1.4:11+i%3);c.model=model;c.homeRoute=route;positionAgent(c,world.roads);cars.push(c);}});
  for(let i=0;i<14;i++){const child=i===2||i===8;const person=createPerson(child);scene.add(person.root);const x=i%2===0?-6.4:6.5;const z=-140+i*21;people.push({...person,x,z,startX:x,startZ:z,direction:i%2?1:-1,phase:'walk',timer:i*2,triggered:false});}
  // Station forecourt and shopfront walkers remain inside each pavement block.
  for(let i=0;i<18;i++){const plaza=i<6,west=i>=12,minX=plaza?103:west?-68:13,maxX=plaza?141:west?-13:67,x=minX+(i%6+.4)/6*(maxX-minX),z=plaza?374+(i%3)*1.1:353.3;const p=createPerson(false);scene.add(p.root);people.push({...p,x,z,startX:x,startZ:z,axis:'x',min:minX,max:maxX,direction:i%2?1:-1,phase:'walk',timer:i,triggered:false});}

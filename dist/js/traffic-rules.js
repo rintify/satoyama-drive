@@ -1,10 +1,11 @@
-import {crossedStopLine} from './simulation.js?v=9';
+import {crossedStopLine} from './simulation.js?v=10';
 const angle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 export const SCORING_RULES=[
  ['右左折の合図なし・逆の合図','25','交差点で35°以上曲がったとき'],
  ['右左折の合図が遅い','15','交差点30m手前までに合図を出していない'],
- ['車線変更の合図なし・逆の合図','20','高速道路で走行車線と追越車線を移るとき'],
+ ['車線変更の合図なし・逆の合図','20','多車線の一般道・一方通行・高速道路で車線を移るとき'],
  ['車線変更の合図が遅い','10','合図から3秒未満で車線を移る'],
+ ['一方通行の逆走','50','一方通行の矢印と逆向きに1秒走行'],
  ['一般道の逆走','50','対向車線を2km/h超で1秒走行'],
  ['高速道路の逆走・後退','80 / 40','逆走は0.5秒、後退は1秒で判定'],
  ['黄色の中央線を越える','45','峠道・里山の黄色い線を走行中に横断'],
@@ -33,8 +34,8 @@ export class RuleBook{
   const bodyWidth=.88*Math.abs(heading)+2.2*Math.sqrt(Math.max(0,1-heading*heading)),outer=Math.abs(info.side)+bodyWidth;
   hold('shoulder',onRoad&&!nearJunction&&!road.highway&&speed>3&&outer>edgeLine,.55,20,'路側帯へのはみ出し',7);
   hold('clearance',onRoad&&!nearJunction&&!road.highway&&speed>3&&outer<=edgeLine&&width/2-outer<.5,1.2,20,'路端との間隔50cm未満',7);
-  const wrong=!(road.highway&&s.speed<0)&&onRoad&&speed>2&&info.side*motionHeading>.8&&Math.abs(heading)>.7&&!nearJunction&&!(s.gear==='R'&&speed<=5&&!road.highway);
-  hold('lane',wrong,road.highway?.5:1,road.highway?80:50,road.highway?'高速道路の逆走':'対向車線の逆走',5);
+  const wrong=!(road.highway&&s.speed<0)&&onRoad&&speed>2&&(road.oneWay?motionHeading<-.7:info.side*motionHeading>.8)&&Math.abs(heading)>.7&&!nearJunction&&!(s.gear==='R'&&speed<=5&&!road.highway);
+  hold('lane',wrong,road.highway?.5:1,road.highway?80:50,road.highway?'高速道路の逆走':road.oneWay?'一方通行の逆走':'対向車線の逆走',5);
   hold('reverse',road.highway&&s.speed<-.5,1,40,'高速道路での後退',5);
   hold('offroad',!onRoad&&speed>3,.8,30,'歩道・路外の走行',5);
   // A bend in a road is not a junction turn; capture an approach heading only at junctions.
@@ -42,8 +43,10 @@ export class RuleBook{
   if(!this.turn&&s.speed>.5){const q=junctions.find(q=>Math.hypot(s.x-q.x,s.z-q.z)<20);if(q)this.turn={q,yaw:s.yaw,checked:false};}
   if(this.turn&&!this.turn.checked&&Math.abs(angle(s.yaw-this.turn.yaw))>Math.PI*35/180&&s.speed>.5){this.signalCheck(s,angle(s.yaw-this.turn.yaw)<0?1:-1,'turn',this.turn.q);this.turn.checked=true;}
   const roadKey=road.id||'road',ownSide=info.side*heading;
-  if(road.highway&&onRoad&&ownSide<-.7&&Math.abs(heading)>.8&&speed>2){const slot=Math.abs(info.side)>4.2?0:Math.abs(info.side)<3.3?1:null;if(slot!==null){if(this.lane?.id===roadKey&&this.lane.dir===Math.sign(heading)&&this.lane.slot!==slot)this.signalCheck(s,slot===1?1:-1,'lane');this.lane={id:roadKey,dir:Math.sign(heading),slot};}}
-  else this.lane=null;
+  if((road.highway||road.lanes>1)&&onRoad&&(road.oneWay?heading>.8:ownSide<-.7)&&Math.abs(heading)>.8&&speed>2&&!nearJunction){
+   const count=road.highway?2:road.lanes,laneWidth=width/(road.oneWay?count:count*2),coordinate=(width/2+info.side*Math.sign(heading))/laneWidth,slot=Math.floor(coordinate),fraction=coordinate-slot;
+   if(slot>=0&&slot<count&&fraction>.09&&fraction<.91){if(this.lane?.id===roadKey&&this.lane.dir===Math.sign(heading)&&this.lane.slot!==slot)this.signalCheck(s,slot>this.lane.slot?1:-1,'lane');this.lane={id:roadKey,dir:Math.sign(heading),slot};}
+  }else this.lane=null;
   if(onRoad&&Math.abs(info.side)>.45){const side=Math.sign(info.side);if(this.center?.id===roadKey&&this.center.side!==side&&speed>2&&!nearJunction&&(road.area==='hill'||road.id==='rural'))this.penalize(s,'yellow',45,'黄色の中央線を横断',5);this.center={id:roadKey,side};}
   for(const q of junctions)if(q.signal!==false&&crossedStopLine(previous,s,q,phase))this.penalize(s,'signal:'+q.x+','+q.z,80,'赤信号での進入',10);
   for(const stop of stops){const axis=stop.axis,other=axis==='x'?'z':'x',forward=axis==='x'?-Math.sin(s.yaw):-Math.cos(s.yaw);if(forward*stop.dir<.7||Math.abs(s[other]-stop[other])>4.8)continue;const line=stop[axis]-stop.dir*stop.offset,dist=(line-s[axis])*stop.dir-2.2,prevDist=(line-previous[axis])*stop.dir-2.2;let held=this.stopped.get(stop.id)||0;if(dist>=0&&dist<=4&&Math.abs(s.speed)<.15)held+=dt;else if(dist>45)held=0;this.stopped.set(stop.id,held);if(prevDist>0&&dist<=0&&held<.8)this.penalize(s,'stop:'+stop.id,40,'一時停止なし（止まれ）',12);}

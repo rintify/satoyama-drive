@@ -1,5 +1,5 @@
-import {nearestRoad,sampleRoad} from './road-network.js?v=9';
-import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=9';
+import {nearestRoad,sampleRoad} from './road-network.js?v=10';
+import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=10';
 export const LICENSE_POINTS=20;
 // Fictional game tariffs. These are not Japan's legal demerit points or fines.
 export function sanctionFor({key='',amount=0,message=''}){const text=key+' '+message;
@@ -18,7 +18,7 @@ export function sanctionFor({key='',amount=0,message=''}){const text=key+' '+mes
  return {points:1,fine:6000};
 }
 export const pursuitCount=seconds=>seconds>=300?3:seconds>=180?2:1;
-export function isAlongside(officer,player){const fx=-Math.sin(player.yaw),fz=-Math.cos(player.yaw),dx=officer.x-player.x,dz=officer.z-player.z,along=dx*fx+dz*fz,side=Math.abs(dx*-fz+dz*fx);return Math.abs(along)<2.7&&side>1.3&&side<3.5&&Math.cos(officer.yaw-player.yaw)>.82&&Math.abs(officer.y-player.y)<1.3;}
+export function isAlongside(officer,player){const fx=-Math.sin(player.yaw),fz=-Math.cos(player.yaw),dx=officer.x-player.x,dz=officer.z-player.z,along=dx*fx+dz*fz,side=Math.abs(dx*-fz+dz*fx);return !player.boat&&Math.abs(along)<2.7&&side>1.3&&side<3.5&&Math.cos(officer.yaw-player.yaw)>.82&&Math.abs(officer.y-player.y)<1.3;}
 export class Enforcement{
  constructor(roads,onEvent=()=>{}){this.roads=roads;this.nav=createRoadNavigator(roads);this.onEvent=onEvent;this.points=LICENSE_POINTS;this.fines=0;this.history=[];this.pending=new Map();this.officers=[];this.active=false;this.elapsed=0;this.grace=0;this.sequence=0;}
  report(violation,state){if(this.grace>0)return false;const tariff=sanctionFor(violation),key=violation.key.split(':')[0],old=this.pending.get(key);if(!old||tariff.points>old.points)this.pending.set(key,{...violation,...tariff});if(!this.active){this.active=true;this.elapsed=0;this.sequence++;this.officers=[];this.spawn(state);this.onEvent({type:'start',message:'白バイが追跡中。安全な場所で速度を落としてください。'});}return true;}

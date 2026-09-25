@@ -1,12 +1,12 @@
-import {nearestRoad,sampleRoad} from './road-network.js?v=9';
+import {nearestRoad,sampleRoad} from './road-network.js?v=10';
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 // A directed lane graph: the motorway median cannot be crossed to take a shortcut.
 export function createRoadNavigator(roads){
  const nodes=[],grid=new Map(),byRoad=new Map();
  function link(a,b){a.edges.push({to:b.id,cost:dist(a,b)+.1});b.incoming.push(a.id);}
  for(const road of roads){const samples=road.samples.filter((_,i)=>i%2===0);if(samples.at(-1)!==road.samples.at(-1))samples.push(road.samples.at(-1));const rows=[];
-  for(const p of samples){const row=[];for(const dir of [1,-1]){const lane=road.highway?Math.max(.55,road.widthAt(p.d)/2-6):.55;const n={id:nodes.length,road,d:p.d,dir,cx:p.x,cz:p.z,x:p.x+p.tz*dir*lane,y:p.y,z:p.z-p.tx*dir*lane,tx:p.tx*dir,tz:p.tz*dir,edges:[],incoming:[]};nodes.push(n);row.push(n);const key=Math.floor(p.x/5)+','+Math.floor(p.z/5);if(!grid.has(key))grid.set(key,[]);grid.get(key).push(n);}rows.push(row);}
-  for(let i=1;i<rows.length;i++){link(rows[i-1][0],rows[i][0]);link(rows[i][1],rows[i-1][1]);}link(rows[0][1],rows[0][0]);link(rows.at(-1)[0],rows.at(-1)[1]);byRoad.set(road,rows);
+  for(const p of samples){const row=[];for(const dir of road.oneWay?[1]:[1,-1]){const lane=road.highway?Math.max(.55,road.widthAt(p.d)/2-6):.55;const n={id:nodes.length,road,d:p.d,dir,cx:p.x,cz:p.z,x:p.x+p.tz*dir*lane,y:p.y,z:p.z-p.tx*dir*lane,tx:p.tx*dir,tz:p.tz*dir,edges:[],incoming:[]};nodes.push(n);row.push(n);const key=Math.floor(p.x/5)+','+Math.floor(p.z/5);if(!grid.has(key))grid.set(key,[]);grid.get(key).push(n);}rows.push(row);}
+  for(let i=1;i<rows.length;i++){link(rows[i-1][0],rows[i][0]);if(!road.oneWay)link(rows[i][1],rows[i-1][1]);}if(road.closed){link(rows.at(-1)[0],rows[0][0]);if(!road.oneWay)link(rows[0][1],rows.at(-1)[1]);}else if(!road.oneWay){link(rows[0][1],rows[0][0]);link(rows.at(-1)[0],rows.at(-1)[1]);}byRoad.set(road,rows);
  }
  for(const n of nodes){if(n.road.highway&&n.road.hasBarrier(n.d))continue;const gx=Math.floor(n.cx/5),gz=Math.floor(n.cz/5);for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(const m of grid.get((gx+dx)+','+(gz+dz))||[]){if(n.road===m.road||Math.abs(n.y-m.y)>1.1||Math.hypot(n.cx-m.cx,n.cz-m.cz)>4.4||m.road.highway&&m.road.hasBarrier(m.d))continue;link(n,m);}}
  function closest(p,heading=true){const road=nearestRoad(roads,p.x,p.z).road,fx=-Math.sin(p.yaw||0),fz=-Math.cos(p.yaw||0);let best=null,cost=Infinity;for(const row of byRoad.get(road))for(const n of row){const score=dist(p,n)+Math.abs((p.y||0)-n.y)*3+(heading?12*(1-fx*n.tx-fz*n.tz):0);if(score<cost){cost=score;best=n;}}return best;}

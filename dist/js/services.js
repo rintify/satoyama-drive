@@ -1,6 +1,6 @@
-import {Enforcement} from './enforcement.js?v=9';
-import {EmergencyTraffic,hasYielded} from './emergency.js?v=9';
-import {createPoliceBike,createAmbulance} from './service-models.js?v=9';
+import {Enforcement} from './enforcement.js?v=10';
+import {EmergencyTraffic,hasYielded} from './emergency.js?v=10';
+import {createPoliceBike,createAmbulance} from './service-models.js?v=10';
 export function createServices(scene,world,traffic,onEvent){
  const enforcement=new Enforcement(world.roads,onEvent),emergency=new EmergencyTraffic(world.roads,traffic.cars);
  const bikes=Array.from({length:3},()=>createPoliceBike()),van=createAmbulance();for(const m of [...bikes,van]){scene.add(m.root);m.root.visible=false;}

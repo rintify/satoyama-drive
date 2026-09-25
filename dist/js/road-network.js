@@ -4,7 +4,7 @@ const mix=(a,b,t)=>a+(b-a)*t;
 const point=p=>({x:p[0],y:p[1],z:p[2]});
 const lerp=(a,b,t)=>({x:mix(a.x,b.x,t),y:mix(a.y,b.y,t),z:mix(a.z,b.z,t)});
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
-export function makeRoad(id,points,{width=9,limit=30,area='town',radius=16,closed=false,highway=false}={}){
+export function makeRoad(id,points,{width=9,limit=30,area='town',radius=16,closed=false,highway=false,lanes=1,oneWay=false,deadEnd=false}={}){
  const vertices=points.map(point);if(closed&&distance(vertices[0],vertices.at(-1))<.01)vertices.pop();
  const samples=[];
  function add(p){const prev=samples.at(-1);if(prev&&distance(prev,p)<.0001)return;samples.push({...p,d:prev?prev.d+distance(prev,p):0});}
@@ -18,9 +18,10 @@ export function makeRoad(id,points,{width=9,limit=30,area='town',radius=16,close
  }
  if(closed)line(samples[0]);
  for(let i=0;i<samples.length;i++){const a=samples[Math.max(0,i-1)],b=samples[Math.min(samples.length-1,i+1)],len=distance(a,b)||1;samples[i].tx=(b.x-a.x)/len;samples[i].tz=(b.z-a.z)/len;}
- const road={id,points,samples,length:samples.at(-1).d,width,limit,area,highway,closed};
+ const road={id,points,samples,length:samples.at(-1).d,width,limit,area,highway,closed,lanes,oneWay,deadEnd};
  road.widthAt=d=>highway?mix(9,width,clamp(Math.min(d,road.length-d)/70,0,1)):width;
  road.edgeLineAt=d=>road.widthAt(d)/2-(area==='country'&&width>=8?1:.25);
+ road.hasEdgeBarrier=area==='mountain';
  road.hasBarrier=d=>highway&&d>95&&d<road.length-95;
  return road;
 }
@@ -34,11 +35,11 @@ export function sampleRoad(road,d){
 export function indexRoads(roads){
  const grid=new Map();for(const road of roads)for(let i=1;i<road.samples.length;i++){const a=road.samples[i-1],b=road.samples[i];for(let x=Math.floor(Math.min(a.x,b.x)/40);x<=Math.floor(Math.max(a.x,b.x)/40);x++)for(let z=Math.floor(Math.min(a.z,b.z)/40);z<=Math.floor(Math.max(a.z,b.z)/40);z++){const key=x+','+z;if(!grid.has(key))grid.set(key,[]);grid.get(key).push({road,i});}}roads.spatialIndex=grid;return roads;
 }
-export function nearestRoad(roads,x,z){
- let best={distance:Infinity,road:null,x,z,y:0,side:0,tx:0,tz:-1,grade:0,d:0};
+export function nearestRoad(roads,x,z,height=null){
+ let bestScore=Infinity;let best={distance:Infinity,road:null,x,z,y:0,side:0,tx:0,tz:-1,grade:0,d:0};
  let candidates=[];if(roads.spatialIndex){const gx=Math.floor(x/40),gz=Math.floor(z/40);for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)candidates.push(...(roads.spatialIndex.get((gx+dx)+','+(gz+dz))||[]));}
  if(!candidates.length)for(const road of roads)for(let i=1;i<road.samples.length;i++)candidates.push({road,i});
- for(const {road,i}of candidates){const a=road.samples[i-1],b=road.samples[i],dx=b.x-a.x,dz=b.z-a.z,len2=dx*dx+dz*dz;if(!len2)continue;const t=clamp(((x-a.x)*dx+(z-a.z)*dz)/len2,0,1),px=a.x+dx*t,pz=a.z+dz*t,distance=Math.hypot(x-px,z-pz);if(distance<best.distance){const len=Math.sqrt(len2);best={distance,road,x:px,z:pz,y:mix(a.y,b.y,t),side:((x-px)*(-dz)+(z-pz)*dx)/len,tx:dx/len,tz:dz/len,grade:(b.y-a.y)/len,d:mix(a.d,b.d,t)};}}
+ for(const {road,i}of candidates){const a=road.samples[i-1],b=road.samples[i],dx=b.x-a.x,dz=b.z-a.z,len2=dx*dx+dz*dz;if(!len2)continue;const t=clamp(((x-a.x)*dx+(z-a.z)*dz)/len2,0,1),px=a.x+dx*t,pz=a.z+dz*t,distance=Math.hypot(x-px,z-pz);const surfaceY=mix(a.y,b.y,t),score=distance+(height===null?0:Math.max(0,Math.abs(surfaceY-height)-.4)*2);if(score<bestScore){bestScore=score;const len=Math.sqrt(len2);best={distance,road,x:px,z:pz,y:mix(a.y,b.y,t),side:((x-px)*(-dz)+(z-pz)*dx)/len,tx:dx/len,tz:dz/len,grade:(b.y-a.y)/len,d:mix(a.d,b.d,t)};}}
  best.onSurface=best.road&&best.distance<=best.road.widthAt(best.d)/2;
  if(!best.onSurface)for(const q of roads.junctions||[]){const dx=x-q.x,dz=z-q.z,ax=Math.abs(dx),az=Math.abs(dz),h=4.5,r=q.radius;if(ax<=h&&az<=h){best.onSurface=true;break;}if(ax>=h&&az>=h&&ax<=h+r&&az<=h+r&&Math.hypot(ax-h-r,az-h-r)>=r&&q.corners.includes(Math.sign(dx)+','+Math.sign(dz))){best.onSurface=true;break;}}
  return best;
@@ -71,6 +72,23 @@ export function createRoadNetwork(){
  add('west-cross',[at(-280,160),at(-160,160)],{});
  add('east-bypass',[at(235,160),at(390,160),at(490,270),at(480,440),at(235,440)],{radius:45,area:'station',limit:40});
  add('east-cross',[at(235,360),at(485,360)],{area:'station',limit:30});
+ // Coastal ring: two lanes in each direction, with raised bridges over the river.
+ const coastalPoints=[at(390,160),at(500,160),at(552,160,8),at(716,160,8),at(770,160),at(780,120),at(780,-600),at(740,-600),at(698,-600,8),at(527,-600,8),at(475,-600),at(300,-600),at(390,-600),at(390,-510),at(340,-480),at(340,-200),at(390,-120)];
+ // The west side joins the existing motorway ramp without doubling back.
+ coastalPoints.splice(11,4,at(390,-600),at(340,-540),at(340,-480));
+ const coast=add('coastal-boulevard',coastalPoints,{closed:true,width:16,lanes:2,limit:50,area:'coast',radius:35});
+ add('coast-west-link',[at(235,160),at(430,160)],{width:16,lanes:2,limit:40,area:'coast'});
+ add('coast-north-link',[at(300,-600),at(450,-600)],{width:9,limit:40,area:'coast'});
+ const mallPoints=[at(365,-200),at(525,-200),at(525,-480),at(365,-480)];
+ const mallRoad=add('mall-one-way',mallPoints,{closed:true,width:10.5,lanes:3,oneWay:true,limit:30,area:'mall',radius:30});
+ const eastEntry=nearestRoad([roads.find(r=>r.id==='east-loop')],235,-160);
+ add('mall-west-entry',[[eastEntry.x,eastEntry.y,eastEntry.z],at(365,-160),at(365,-245)],{width:9,limit:30,area:'mall',radius:24});
+ const mallJoin=nearestRoad([mallRoad],365,-370),coastJoin=nearestRoad([coast],340,-370);
+ add('mall-access',[[coastJoin.x,coastJoin.y,coastJoin.z],[mallJoin.x,mallJoin.y,mallJoin.z]],{area:'mall',limit:20});
+ add('parking-entry',[at(365,-370),at(426,-370)],{area:'mall',width:8,limit:10,deadEnd:true});
+ const marina=add('marina-access',[at(780,80),at(830,270),at(880,350)],{width:9,limit:30,area:'coast',radius:35,deadEnd:true});
+ const hStart=nearestRoad([hill],-390,-395),hEnd=nearestRoad([hill],-100,-758);
+ const mountain=add('cloud-mountain-pass',[[hStart.x,hStart.y,hStart.z],at(-550,-430,40),at(-735,-570,68),at(-800,-770,96),at(-660,-930,126),at(-420,-1020,117),at(-205,-970,87),[hEnd.x,hEnd.y,hEnd.z]],{width:9,limit:40,area:'mountain',radius:60});
  const junctions=[];
  for(const x of [-160,-80,0,160])for(const z of [-160,0,160])junctions.push({x,z,y:.04,radius:8.5,signal:(x===0||x===-160)&&z!==0});
  junctions.push({x:0,z:285,y:.04,radius:8.5},{x:0,z:-240,y:.04,radius:8.5},{x:210,z:-665,y:.04,radius:12});
@@ -95,10 +113,13 @@ export function createRoadNetwork(){
  ];
  // Snap each new connector endpoint to its intended adjoining surface.
  for(const id of ['east-cross']){const old=roads.find(r=>r.id===id),end=old.points.at(-1),near=nearestRoad(roads.filter(r=>r!==old),end[0],end[2]);old.points[old.points.length-1]=[near.x,near.y,near.z];const replacement=makeRoad(id,old.points,{area:old.area,limit:old.limit});roads[roads.indexOf(old)]=replacement;}
+ routes.push(makeRoad('cloud-circuit',[...mountain.points,at(-275,-650,55),at(-365,-530,42)],{closed:true,width:9,limit:40,area:'mountain',radius:p=>Math.hypot(p.x-hStart.x,p.z-hStart.z)<1||Math.hypot(p.x-hEnd.x,p.z-hEnd.z)<1?8:p.x<-400||p.z<-850?60:48}));
+ routes.push(makeRoad('coast-circuit',coastalPoints,{closed:true,width:16,lanes:2,limit:50,area:'coast',radius:35}),makeRoad('mall-circuit',mallPoints,{closed:true,width:10.5,lanes:3,oneWay:true,limit:30,area:'mall',radius:30}));
  const stops=[];for(const [x,z,axis]of [[-80,0,'z'],[160,0,'z'],[-80,360,'z'],[80,360,'z']])for(const dir of [-1,1])stops.push({id:`${x},${z},${axis},${dir}`,x,z,axis,dir,offset:11});
  indexRoads(roads);
  for(const q of junctions){q.signal=!!q.signal;q.corners=[];for(const sx of [-1,1])for(const sz of [-1,1])if(nearestRoad(roads,q.x+sx*18,q.z).distance<3&&nearestRoad(roads,q.x,q.z+sz*18).distance<3)q.corners.push(sx+','+sz);}
  roads.junctions=junctions;
+ for(const route of routes){if(route.id==='coast-circuit')route.sourceRoad=coast;if(route.id==='mall-circuit')route.sourceRoad=mallRoad;}
  for(const route of routes)for(const p of route.samples){const near=nearestRoad(roads,p.x,p.z);p.sourceRoad=near.road;p.sourceD=near.d;}
- return {roads,rural,highway,hill,station,stops,junctions,routes,totalLength:roads.reduce((s,r)=>s+r.length,0)};
+ return {roads,rural,highway,hill,station,coast,mountain,marina,mallRoad,stops,junctions,routes,totalLength:roads.reduce((s,r)=>s+r.length,0)};
 }
