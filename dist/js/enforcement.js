@@ -1,5 +1,6 @@
-import {nearestRoad,sampleRoad} from './road-network.js?v=10';
-import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=10';
+import {walkToward} from './locomotion.js?v=11';
+import {nearestRoad,sampleRoad} from './road-network.js?v=11';
+import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=11';
 export const LICENSE_POINTS=20;
 // Fictional game tariffs. These are not Japan's legal demerit points or fines.
 export function sanctionFor({key='',amount=0,message=''}){const text=key+' '+message;
@@ -20,11 +21,19 @@ export function sanctionFor({key='',amount=0,message=''}){const text=key+' '+mes
 export const pursuitCount=seconds=>seconds>=300?3:seconds>=180?2:1;
 export function isAlongside(officer,player){const fx=-Math.sin(player.yaw),fz=-Math.cos(player.yaw),dx=officer.x-player.x,dz=officer.z-player.z,along=dx*fx+dz*fz,side=Math.abs(dx*-fz+dz*fx);return !player.boat&&Math.abs(along)<2.7&&side>1.3&&side<3.5&&Math.cos(officer.yaw-player.yaw)>.82&&Math.abs(officer.y-player.y)<1.3;}
 export class Enforcement{
- constructor(roads,onEvent=()=>{}){this.roads=roads;this.nav=createRoadNavigator(roads);this.onEvent=onEvent;this.points=LICENSE_POINTS;this.fines=0;this.history=[];this.pending=new Map();this.officers=[];this.active=false;this.elapsed=0;this.grace=0;this.sequence=0;}
+ constructor(roads,onEvent=()=>{}){this.roads=roads;this.nav=createRoadNavigator(roads);this.onEvent=onEvent;this.points=LICENSE_POINTS;this.fines=0;this.history=[];this.pending=new Map();this.officers=[];this.active=false;this.elapsed=0;this.grace=0;this.sequence=0;this.walkClear=()=>true;this.walkSurface=(x,z)=>nearestRoad(this.roads,x,z).y;}
  report(violation,state){if(this.grace>0)return false;const tariff=sanctionFor(violation),key=violation.key.split(':')[0],old=this.pending.get(key);if(!old||tariff.points>old.points)this.pending.set(key,{...violation,...tariff});if(!this.active){this.active=true;this.elapsed=0;this.sequence++;this.officers=[];this.spawn(state);this.onEvent({type:'start',message:'白バイが追跡中。安全な場所で速度を落としてください。'});}return true;}
  spawn(state){const offset=65+this.officers.length*25,n=this.nav.behind(state,offset),p=sampleRoad(n.road,n.d),lane=n.road.highway?Math.max(2,n.road.widthAt(p.d)/2-2.35):2.18;const officer={x:p.x+p.tz*n.dir*lane,y:p.y,z:p.z-p.tx*n.dir*lane,yaw:Math.atan2(-p.tx*n.dir,-p.tz*n.dir),speed:5,path:[],pathIndex:0,routeTimer:2,sideTime:0,visible:true,hx:.5,hz:1.1,index:this.officers.length};this.officers.push(officer);}
  advanceTime(dt,state){if(!Number.isFinite(dt)||dt<=0)return;this.grace=Math.max(0,this.grace-dt);if(!this.active)return;this.elapsed+=dt;const count=pursuitCount(this.elapsed);while(this.officers.length<count){this.spawn(state);this.onEvent({type:'reinforcement',message:`白バイの増援：${this.officers.length}台で追跡中`});}}
- update(dt,state,obstacles=[]){for(const a of this.officers){if(!a.visible)continue;if(!this.active){followRoadPath(a,a.path,12,dt);if(Math.hypot(a.x-state.x,a.z-state.z)>130||a.pathIndex>=a.path.length-1)a.visible=false;continue;}
+ update(dt,state,obstacles=[]){for(const a of this.officers){if(!a.visible)continue;
+  const targetRoad=nearestRoad(this.roads,state.x,state.z),walkTarget=!state.flight&&(state.onFoot||targetRoad.distance>targetRoad.road.widthAt(targetRoad.d)/2+.8);
+  if(a.mode!=='foot'&&this.active&&walkTarget&&Math.hypot(a.x-state.x,a.z-state.z)<70){a.bikePose={x:a.x,y:a.y,z:a.z,yaw:a.yaw};a.mode='foot';a.hx=a.hz=.3;a.height=1.75;a.speed=0;}
+  if(a.mode==='foot'){const pursuing=this.active&&walkTarget,target=pursuing?state:a.bikePose;
+   walkToward(a,target,dt,this.walkClear,this.walkSurface,pursuing?4.7:3.2);
+   const close=Math.hypot(a.x-target.x,a.z-target.z)<(pursuing?1.55:1),level=Math.abs(a.y-target.y)<1.1;
+   a.sideTime=pursuing&&close&&level?a.sideTime+dt:0;if(a.sideTime>.6){this.catch(state);break;}
+   if(!pursuing&&close&&level){Object.assign(a,a.bikePose,{mode:'bike',bikePose:null,hx:.5,hz:1.1,height:2.2,routeTimer:2});}continue;
+  }if(!this.active){followRoadPath(a,a.path,12,dt);if(Math.hypot(a.x-state.x,a.z-state.z)>130||a.pathIndex>=a.path.length-1)a.visible=false;continue;}
   a.routeTimer+=dt;const near=Math.hypot(a.x-state.x,a.z-state.z)<25,road=nearestRoad(this.roads,state.x,state.z);let goal=null;
   if(near){for(const side of [1,-1]){const p={x:state.x+Math.cos(state.yaw)*1.9*side,y:road.y,z:state.z-Math.sin(state.yaw)*1.9*side,yaw:state.yaw},r=nearestRoad(this.roads,p.x,p.z);if(r.distance<r.road.widthAt(r.d)/2-.55&&roadSegmentClear(this.roads,a,p)){goal=p;break;}}}
   if(goal){a.path=[goal];a.pathIndex=0;a.routeTimer=2;}else if(a.routeTimer>1.2||!a.path.length){a.routeTimer=0;a.path=this.nav.route(a,state);a.pathIndex=Math.min(1,a.path.length-1);}

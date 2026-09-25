@@ -1,4 +1,4 @@
-import {carCorners} from './simulation.js?v=10';
+import {carCorners} from './simulation.js?v=11';
 // Minimum translation vector for two oriented vehicle/building footprints.
 export function contactManifold(a,b){
  if(b.destroyed)return null;const A=carCorners(a,a.hx??.88,a.hz??2.2),B=carCorners({...b,yaw:b.yaw||0},b.hx??.88,b.hz??2.2);let best=null;

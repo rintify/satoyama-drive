@@ -1,5 +1,5 @@
-import {sampleRoad,nearestRoad} from './road-network.js?v=10';
-import {clamp} from './simulation.js?v=10';
+import {sampleRoad,nearestRoad} from './road-network.js?v=11';
+import {clamp} from './simulation.js?v=11';
 const wrap=(d,length)=>((d%length)+length)%length;
 const smooth=t=>t*t*(3-2*t);
 const laneWidth=r=>r.highway?3.7:r.width/(r.oneWay?r.lanes:2*r.lanes);
@@ -46,8 +46,8 @@ export function planAgent(c,obstacles,people,junctions,phase,dt,stops=[]){
  if(limit<.1)acceleration=Math.min(acceleration,-3);
  return {acceleration:clamp(acceleration,-8,1.6),gap,leaderSpeed:leader?.speed};
 }
-export function stepTraffic(cars,dt,player,roads,junctions,people=[],phase='green',stops=[]){
- cars=cars.filter(c=>!c.destroyed);const obstacles=[player,...cars];const plans=cars.map(c=>planAgent(c,obstacles,people,junctions,phase,dt,stops));
+export function stepTraffic(cars,dt,player,roads,junctions,people=[],phase='green',stops=[],extraObstacles=[]){
+ cars=cars.filter(c=>!c.destroyed);const obstacles=[player,...cars,...extraObstacles];const plans=cars.map(c=>planAgent(c,obstacles,people,junctions,phase,dt,stops));
  cars.forEach((c,i)=>{const plan=plans[i];c.speed=Math.max(0,c.speed+plan.acceleration*dt);let distance=c.speed*dt;if(Number.isFinite(plan.gap))distance=Math.min(distance,Math.max(0,plan.gap-5.6));if(distance===0&&plan.gap<5.7)c.speed=0;c.braking=plan.acceleration<-.7;c.d=wrap(c.d+c.dir*distance,c.route.length);const oldX=c.x,oldZ=c.z,oldYaw=c.yaw;positionAgent(c,roads);if(dt>0&&Math.hypot(c.x-oldX,c.z-oldZ)>.00001){const desired=Math.atan2(-(c.x-oldX),-(c.z-oldZ));const difference=Math.atan2(Math.sin(desired-oldYaw),Math.cos(desired-oldYaw));c.yaw=oldYaw+clamp(difference,-1.3*dt,1.3*dt);}c.steer=Math.atan2(Math.sin(c.yaw-oldYaw),Math.cos(c.yaw-oldYaw))*-2.65/Math.max(.3,c.speed*dt);});
 }
 export function closestTrafficRoute(cars,state){

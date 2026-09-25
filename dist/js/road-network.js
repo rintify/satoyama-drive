@@ -86,7 +86,7 @@ export function createRoadNetwork(){
  const mallJoin=nearestRoad([mallRoad],365,-370),coastJoin=nearestRoad([coast],340,-370);
  add('mall-access',[[coastJoin.x,coastJoin.y,coastJoin.z],[mallJoin.x,mallJoin.y,mallJoin.z]],{area:'mall',limit:20});
  add('parking-entry',[at(365,-370),at(426,-370)],{area:'mall',width:8,limit:10,deadEnd:true});
- const marina=add('marina-access',[at(780,80),at(830,270),at(880,350)],{width:9,limit:30,area:'coast',radius:35,deadEnd:true});
+ const marina=add('marina-access',[at(780,80),at(830,270),at(872,350),at(872,410),at(902,410)],{width:9,limit:30,area:'coast',radius:35,deadEnd:true});
  const hStart=nearestRoad([hill],-390,-395),hEnd=nearestRoad([hill],-100,-758);
  const mountain=add('cloud-mountain-pass',[[hStart.x,hStart.y,hStart.z],at(-550,-430,40),at(-735,-570,68),at(-800,-770,96),at(-660,-930,126),at(-420,-1020,117),at(-205,-970,87),[hEnd.x,hEnd.y,hEnd.z]],{width:9,limit:40,area:'mountain',radius:60});
  const junctions=[];

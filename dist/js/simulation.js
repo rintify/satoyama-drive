@@ -40,7 +40,7 @@ export function crossedStopLine(prev,s,intersection,phase){
  const phases=typeof phase==='string'?{z:phase}:phase;
  for(const axis of Object.keys(phases)){if(phases[axis]!=='red')continue;const lateral=axis==='z'?'x':'z';if(Math.abs(s[lateral]-intersection[lateral])>4.6)continue;const delta=s[axis]-prev[axis],center=intersection[axis];if(delta<0&&prev[axis]>center+11&&s[axis]<=center+11)return true;if(delta>0&&prev[axis]<center-11&&s[axis]>=center-11)return true;}return false;
 }
-export {RuleBook} from './traffic-rules.js?v=10';
+export {RuleBook} from './traffic-rules.js?v=11';
 
 // The inside wheel follows a tighter radius than the outside wheel.
 export function ackermannAngles(steer, wheelbase=2.65, track=1.8) {

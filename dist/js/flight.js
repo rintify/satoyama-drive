@@ -1,4 +1,4 @@
-import {clamp} from './simulation.js?v=10';
+import {clamp} from './simulation.js?v=11';
 const G=9.81;
 // Accessible fixed-wing game model: aerodynamic lift, drag and coordinated turns.
 // Speeds are m/s; pitch is nose-up, bank is right-wing-down, all angles in radians.
@@ -6,6 +6,7 @@ export function takeOff(s){Object.assign(s,{flight:true,landing:false,airborne:f
 export function requestLanding(s,clear){if(!s.flight)return false;if(!s.airborne){s.flight=false;s.flightThrottle=0;return true;}if(!clear)return false;s.landing=true;return true;}
 export function stepFlight(s,dt,floor,input={},canLand=true){
  dt=clamp(dt,0,1/30);if(!s.flight||dt===0)return false;
+ if(s.shotDown){s.landing=false;s.throttle=s.flightThrottle=0;s.speed*=Math.exp(-dt*.15);s.verticalSpeed-=G*dt;s.flightPitch+=(-.5-s.flightPitch)*dt;s.flightBank+=.7*dt;s.yaw+=.12*dt;s.x-=Math.sin(s.yaw)*s.speed*dt;s.z-=Math.cos(s.yaw)*s.speed*dt;s.y+=s.verticalSpeed*dt;if(s.y<=floor){s.y=floor;s.flightImpact=Math.abs(s.verticalSpeed);s.speed=s.verticalSpeed=0;s.flight=s.airborne=false;return true;}return false;}
  if(typeof input==='number')input={elevator:input};
  let elevator=clamp(input.elevator||0,-1,1),aileron=clamp(input.aileron||0,-1,1),rudder=clamp(input.rudder||0,-1,1);
  const altitude=Math.max(0,s.y-floor),v=Math.hypot(s.speed,s.verticalSpeed),gamma=Math.atan2(s.verticalSpeed,Math.max(1,s.speed)),authority=clamp(v/22,.12,1);
@@ -39,3 +40,6 @@ export class MissileSystem{
  const ground=groundHeight(end.x,end.z);let terrain=false;if(end.y<=ground+.1){const t=m.y>ground+.1?clamp((m.y-ground-.1)/(m.y-end.y),0,1):0;if(t<first){first=t;target=null;terrain=true;}}
  if(target||terrain){const hit={x:m.x+(end.x-m.x)*first,y:m.y+(end.y-m.y)*first,z:m.z+(end.z-m.z)*first};this.onExplode(hit,target);continue;}Object.assign(m,end);if(m.life<4.5)alive.push(m);}this.items=alive;}
 }
+
+// Forward axis stays fixed to the car, independent of camera look direction.
+export function vehicleLaunchPose(s){const pitch=s.flight?s.flightPitch||0:s.launchPitch||0,bank=s.flight?-(s.flightBank||0):0,c=Math.cos(s.yaw),n=Math.sin(s.yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),cb=Math.cos(bank),sb=Math.sin(bank),lx=-.95*sb,ly=.95*cb,up=ly*cp+2.8*sp,lz=ly*sp-2.8*cp;return {origin:{x:s.x+lx*c+lz*n,y:s.y+up,z:s.z-lx*n+lz*c},direction:{x:-n*cp,y:sp,z:-c*cp}};}

@@ -1,8 +1,8 @@
 import * as T from '../vendor/three.module.js';
-import {nearestRoad,sampleRoad} from './road-network.js?v=10';
-import {WATER_LEVEL,riverCenter,riverWidth,waterDistance,isWater} from './waterways.js?v=10';
-import {createCar} from './vehicle.js?v=10';
-import {GARAGE} from './parking.js?v=10';
+import {nearestRoad,sampleRoad} from './road-network.js?v=11';
+import {WATER_LEVEL,riverCenter,riverWidth,waterDistance,isWater} from './waterways.js?v=11';
+import {createCar} from './vehicle.js?v=11';
+import {GARAGE} from './parking.js?v=11';
 const mat=(color,extra={})=>new T.MeshStandardMaterial({color,roughness:.75,...extra});
 const unit=new T.BoxGeometry(1,1,1),bloomGeo=new T.IcosahedronGeometry(1,1),cone=new T.ConeGeometry(1,1,7),trunk=new T.CylinderGeometry(.45,1,1,7);
 export function createExpansion(scene,batch,m,network,colliders,sign,streetLights,nightMaterials,assets){
@@ -57,7 +57,8 @@ export function createExpansion(scene,batch,m,network,colliders,sign,streetLight
  for(const z of [326,374]){batch.box(timber,931,-.18,z,5,.25,43);for(let i=0;i<4;i++)batch.add(trunk,timber,931,-2,z-18+i*12,.16,4,.16);}
  for(const z of [330,340,360,370]){batch.add(trunk,roof,900,.25,z,.18,.7,.18);batch.add(trunk,m.white,900,.4,z,.19,.2,.19);}
  const office={x:860,z:330,hx:7,hz:5,y:0,height:4,type:'building',objects:[]};colliders.push(office);batch.owner=office;batch.box(timber,860,2,330,14,4,10);batch.box(roof,860,4.2,330,16,.3,12);batch.box(glass,860,2.2,335.1,11,2.6,.1);sign(860,3.5,335.2,['SATOYAMA MARINA'],'#24595c',12,1.1);batch.owner=null;
- sign(884,2.8,346,['船に乗る  →'],'#24595c',5,1.1);sign(866,2.2,364,['海へ、川へ。'],'#24595c',6,1.2);
+ sign(884,2.8,346,['水上変形  →'],'#24595c',5,1.1);sign(866,2.2,364,['海へ、川へ。'],'#24595c',6,1.2);
+ batch.box(stone,894,-.13,410,28,.3,13);const slip=new T.BufferGeometry();slip.setAttribute('position',new T.Float32BufferAttribute([906,.03,403,906,.03,417,920,-2,403,920,-2,417],3));slip.setIndex([0,1,2,2,1,3]);slip.computeVertexNormals();const ramp=new T.Mesh(slip,stone);ramp.receiveShadow=true;scene.add(ramp);sign(895,2.6,401,['水上変形 → 海へ'],'#24595c',8,1.2);for(const z of [402,418])batch.box(m.white,900,.06,z,13,.025,.14);
  // Instanced flowering trees follow the real road surface, leaving the carriageway clear.
  function sakura(x,y,z,size=1){batch.add(trunk,timber,x,y+2.6*size,z,.25*size,5.2*size,.25*size);for(let k=0;k<5;k++){const a=k*2.4;batch.add(trunk,timber,x+Math.cos(a)*.8*size,y+3.7*size,z+Math.sin(a)*.8*size,.12*size,3.5*size,.12*size,a,Math.sin(a)*.75,Math.cos(a)*.75);}for(let k=0;k<38;k++){const a=k*2.399,rad=Math.sqrt((k+.5)/38)*3.5*size;batch.add(petalPlane,petals,x+Math.cos(a)*rad,y+(5.6+Math.sin(k*3)*.7-rad*.13)*size,z+Math.sin(a)*rad,2.65*size,2.4*size,1,a,Math.sin(k)*.95,Math.cos(k)*.6);}}
 
@@ -93,19 +94,5 @@ function createValleyAtmosphere(scene){
  const base=positions.slice(),g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(positions,3));const m=new T.PointsMaterial({color:'#e4ffd0',size:.25,transparent:true,opacity:0,blending:T.AdditiveBlending,depthWrite:false});const lights=new T.Points(g,m);scene.add(lights);
  return {update(time,sky,state){mistMaterial.uniforms.time.value=time;mistMaterial.uniforms.strength.value=.12+sky.twilight*.22;for(const mesh of mist)mesh.rotation.y=state.yaw;m.opacity=.75*sky.night;lights.visible=sky.night>.08;for(let i=0;i<220;i++){positions[i*3+1]=base[i*3+1]+Math.sin(time*.8+i)*.65;positions[i*3]=base[i*3]+Math.sin(time*.23+i*3)*1.8;}g.attributes.position.needsUpdate=true;}};
 }
-export function createBoatModel(scene){
- const root=new T.Group();scene.add(root);root.visible=false;const hull=mat('#e4e8df',{metalness:.2,roughness:.35}),navy=mat('#1a4c64'),teak=mat('#b18e62'),chrome=mat('#b7cece',{metalness:.85,roughness:.24}),seat=mat('#e5d7bc'),dark=mat('#203944');
- const shape=[[-1.25,2.6],[1.25,2.6],[1.3,-1.3],[.75,-2.9],[0,-3.65],[-.75,-2.9],[-1.3,-1.3]];
- const pos=[],indices=[];for(const [x,z]of shape)pos.push(x,.82,z,x*.7,-.3,z*.83);for(let i=0;i<shape.length;i++){const j=(i+1)%shape.length;indices.push(i*2,j*2,i*2+1,j*2,j*2+1,i*2+1);}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setIndex(indices);g.computeVertexNormals();const hullMesh=new T.Mesh(g,hull);hullMesh.material.side=T.DoubleSide;root.add(hullMesh);
- const deckShape=new T.Shape();shape.forEach(([x,z],i)=>i?deckShape.lineTo(x,-z):deckShape.moveTo(x,-z));deckShape.closePath();const deck=new T.Mesh(new T.ShapeGeometry(deckShape),teak);deck.rotation.x=-Math.PI/2;deck.position.y=.78;root.add(deck);
- const box=(m,x,y,z,w,h,d)=>{const q=new T.Mesh(unit,m);q.position.set(x,y,z);q.scale.set(w,h,d);q.castShadow=true;root.add(q);return q;};
- box(navy,0,.34,2.52,2.45,.55,.11);box(dark,0,1.22,-.5,1.25,.9,.6);box(seat,-.63,1,1.1,.85,.25,.85);box(seat,.63,1,1.1,.85,.25,.85);box(seat,-.63,1.4,1.4,.85,.85,.19);box(seat,.63,1.4,1.4,.85,.85,.19);
- const screen=box(new T.MeshStandardMaterial({color:'#95bcc3',transparent:true,opacity:.3,metalness:.3,roughness:.15,side:T.DoubleSide}),0,1.68,-.85,1.95,.63,.035);screen.rotation.x=-.3;for(const x of [-1,1])box(chrome,x,1.58,-.82,.035,.85,.035);
- const wheel=new T.Mesh(new T.TorusGeometry(.23,.022,6,20),chrome);wheel.rotation.x=-.5;wheel.position.set(.4,1.55,-.1);root.add(wheel);box(dark,0,.5,2.9,.45,1.1,.4);
- for(const side of [-1,1])for(const z of [-2.1,-1.2,2]){box(chrome,side*(z<-1.5?.8:1.15),1.04,z,.035,.5,.035);}for(const side of [-1,1])box(chrome,side*1.15,1.3,.2,.035,.035,3.8);
- const wakeGeo=new T.BufferGeometry(),wp=new Float32Array(80*3),life=new Float32Array(80);wakeGeo.setAttribute('position',new T.BufferAttribute(wp,3));const wakeMat=new T.PointsMaterial({color:'#d9ffff',size:.65,transparent:true,opacity:.5,depthWrite:false});const wake=new T.Points(wakeGeo,wakeMat);wake.frustumCulled=false;scene.add(wake);let cursor=0,timer=0;
- return {root,update(s,time,dt){root.visible=!!s.boat;root.position.set(s.x,s.y,s.z);root.rotation.set(Math.sin(time*1.6)*.018,s.yaw,-(s.boatYawRate||0)*.2,'YXZ');wheel.rotation.z=-s.steering*Math.PI/180;timer+=dt;if(s.boat&&Math.abs(s.speed)>1&&timer>.05){timer=0;for(const side of [-1,1]){const i=cursor++%80;life[i]=1.8;wp[i*3]=s.x+Math.sin(s.yaw)*3+Math.cos(s.yaw)*side*.9;wp[i*3+1]=WATER_LEVEL+.04;wp[i*3+2]=s.z+Math.cos(s.yaw)*3-Math.sin(s.yaw)*side*.9;}}for(let i=0;i<80;i++){life[i]-=dt;if(life[i]<=0)wp[i*3+1]=-30;}wakeGeo.attributes.position.needsUpdate=true;wake.visible=!!s.boat;}};
-}
-
 // A single reusable blossom atlas: many tiny petals with a broken, organic edge.
 function blossomTexture(){const c=document.createElement('canvas');c.width=c.height=512;const a=c.getContext('2d');let seed=34;const r=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};for(let i=0;i<1050;i++){const angle=r()*Math.PI*2,rad=Math.sqrt(r())*220*(.8+.2*Math.sin(angle*5)),x=256+Math.cos(angle)*rad,y=256+Math.sin(angle)*rad,sz=3+r()*6;for(let k=0;k<5;k++){const t=k*Math.PI*.4;a.save();a.translate(x,y);a.rotate(t);a.fillStyle=['#f8e2ec','#e8b6cb','#fff0ee','#d49cb5'][Math.floor(r()*4)];a.beginPath();a.ellipse(0,-sz*.7,sz*.58,sz,0,0,Math.PI*2);a.fill();a.restore();}a.fillStyle='#ad6281';a.beginPath();a.arc(x,y,sz*.19,0,Math.PI*2);a.fill();}const texture=new T.CanvasTexture(c);texture.colorSpace=T.SRGBColorSpace;return texture;}
