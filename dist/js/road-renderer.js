@@ -1,9 +1,9 @@
 import * as T from '../vendor/three.module.js';
-import {sampleRoad,nearestRoad} from './road-network.js?v=11';
+import {sampleRoad,nearestRoad} from './road-network.js?v=12';
 
 // Surface and paint share the same sampled, height-aware ribbon. UVs are world
 // aligned, so intersecting asphalt meshes cannot produce rotated texture seams.
-export function renderRoadNetwork(scene,batch,materials,network){
+export function renderRoadNetwork(scene,batch,materials,network,colliders=[]){
  const {roads,junctions}=network;const sidewalks={pos:[],idx:[]};
  const mesh=(pos,indices,material)=>{if(!pos.length)return;const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(pos.flatMap((_,i)=>i%3===0?[pos[i],pos[i+2]]:[]),2));geometry.setIndex(indices);geometry.computeVertexNormals();const m=new T.Mesh(geometry,material);m.receiveShadow=true;scene.add(m);return m;};
  function ribbon(points,offset,width,lift,material,bucket){const pos=[],indices=[];for(let i=0;i<points.length;i++){const p=points[i],nx=-p.tz,nz=p.tx,w=typeof width==='function'?width(p.d):width,o=typeof offset==='function'?offset(p.d):offset;for(const s of [1,-1])pos.push(p.x+nx*(o+s*w/2),p.y+lift,p.z+nz*(o+s*w/2));if(i){const j=i*2;indices.push(j-2,j,j-1,j-1,j,j+1);}}if(bucket){const base=bucket.pos.length/3;bucket.pos.push(...pos);bucket.idx.push(...indices.map(i=>i+base));return;}return mesh(pos,indices,material);}
@@ -28,9 +28,9 @@ export function renderRoadNetwork(scene,batch,materials,network){
   // Asphalt shoulders blend into a grass embankment on the hill road.
   if(!road.highway&&road.area!=='coast'){for(const side of [-1,1]){
    const pos=[],idx=[];for(let i=0;i<road.samples.length;i++){const p=road.samples[i],nx=-p.tz*side,nz=p.tx*side,half=road.width/2,bank=Math.max(3,p.y*1.5);pos.push(p.x+nx*half,p.y-.01,p.z+nz*half,p.x+nx*(half+bank),-.035,p.z+nz*(half+bank));if(i){const j=i*2;idx.push(j-2,j-1,j,j-1,j+1,j);}}
-   const m=mesh(pos,idx,materials.ground);if(m)m.material=materials.bank;
+   const m=mesh(pos,idx,materials.ground);if(m){m.material=materials.bank;m.userData.terrain=true;}
   }}
-  if(road.highway){for(const side of [-1,0,1]){const pos=[],idx=[];for(let i=0;i<road.samples.length-1;i++){const a=road.samples[i],b=road.samples[i+1];if(!road.hasBarrier(a.d))continue;const width=side?road.widthAt(a.d)/2-.12:0;const base=pos.length/3;for(const p of [a,b]){const x=p.x-p.tz*side*width,z=p.z+p.tx*side*width;pos.push(x,p.y,z,x,p.y+.78,z);}idx.push(base,base+1,base+2,base+1,base+3,base+2);}mesh(pos,idx,materials.barrier);}
+  if(road.highway){for(const side of [-1,0,1])for(let d=2.5;d<road.length;d+=5){const p=sampleRoad(road,d);if(!road.hasBarrier(d))continue;const width=side?road.widthAt(d)/2-.12:0,x=p.x-p.tz*side*width,z=p.z+p.tx*side*width,yaw=Math.atan2(-p.tx,-p.tz),part={x,z,y:p.y,hx:.12,hz:2.55,yaw,height:.8,type:'barrier',objects:[]};colliders.push(part);batch.owner=part;batch.box(materials.barrier,x,p.y+.4,z,.24,.8,5.1,yaw);batch.owner=null;}
    for(let d=110;d<road.length-110;d+=32){const p=sampleRoad(road,d);if(p.y<1)continue;batch.box(materials.concrete,p.x,p.y/2,p.z,1.4,p.y,2.5);batch.box(materials.concrete,p.x,p.y-.35,p.z,16,.6,2.1);}
   }
   if(['town','station','mall'].includes(road.area)){

@@ -1,8 +1,8 @@
 import * as T from '../vendor/three.module.js';
-import {nearestRoad,sampleRoad} from './road-network.js?v=11';
-import {WATER_LEVEL,riverCenter,riverWidth,waterDistance,isWater} from './waterways.js?v=11';
-import {createCar} from './vehicle.js?v=11';
-import {GARAGE} from './parking.js?v=11';
+import {nearestRoad,sampleRoad} from './road-network.js?v=12';
+import {WATER_LEVEL,riverCenter,riverWidth,waterDistance,isWater} from './waterways.js?v=12';
+import {createCar} from './vehicle.js?v=12';
+import {GARAGE} from './parking.js?v=12';
 const mat=(color,extra={})=>new T.MeshStandardMaterial({color,roughness:.75,...extra});
 const unit=new T.BoxGeometry(1,1,1),bloomGeo=new T.IcosahedronGeometry(1,1),cone=new T.ConeGeometry(1,1,7),trunk=new T.CylinderGeometry(.45,1,1,7);
 export function createExpansion(scene,batch,m,network,colliders,sign,streetLights,nightMaterials,assets){
@@ -37,7 +37,7 @@ export function createExpansion(scene,batch,m,network,colliders,sign,streetLight
   for(let z=-428;z<-340;z+=5.3){for(const x of [424.5,467]){batch.box(stripe,x,y+.025,z,7,.035,.1);batch.box(roof,x,y+.13,z+2.2,3,.18,.17);}}
   if(level<3){
    const geometry=new T.BufferGeometry(),z0=g.rampZ0,z1=g.rampZ1,x0=g.rampX0,x1=g.rampX1;
-   geometry.setAttribute('position',new T.Float32BufferAttribute([x0,y+4,z0,x1,y+4,z0,x0,y,z1,x1,y,z1],3));geometry.setIndex([0,2,1,1,2,3]);geometry.computeVertexNormals();const ramp=new T.Mesh(geometry,deckMat);ramp.receiveShadow=true;scene.add(ramp);
+   geometry.setAttribute('position',new T.Float32BufferAttribute([x0,y+4,z0,x1,y+4,z0,x0,y,z1,x1,y,z1],3));geometry.setIndex([0,2,1,1,2,3]);geometry.computeVertexNormals();const ramp=new T.Mesh(geometry,deckMat);ramp.userData.surface=true;ramp.receiveShadow=true;scene.add(ramp);
    for(let z=z0;z<z1;z+=3){const ry=y+(z1-z)/70*4;batch.box(stripe,482,ry+.03,z,.13,.025,1.7,0,Math.atan(4/70));}
    // Ramps have their own height-aware side guards, not a solid wall across exits.
    for(const x of [473,491])for(let z=-418;z<-351;z+=4){const ry=y+(-350-z)/70*4;solid(guard,x,ry+.48,z,.22,.96,4.02);}
@@ -51,10 +51,10 @@ export function createExpansion(scene,batch,m,network,colliders,sign,streetLight
  // One-way entrances and direction markers.
  for(let d=35;d<network.mallRoad.length;d+=135){const p=sampleRoad(network.mallRoad,d),x=p.x-p.tz*7,z=p.z+p.tx*7,yaw=Math.atan2(-p.tx,-p.tz);batch.box(m.metal,x,1.6,z,.09,3.2,.09);sign(x,3,z,['一方通行 →'],'#285f96',3.2,.85,yaw);}
  // River bridges: open underneath, with piers and railings on both banks.
- for(const road of [network.coast])for(let d=3;d<road.length;d+=5){const p=sampleRoad(road,d);if(p.y<4||waterDistance(p.x,p.z)>24)continue;const yaw=Math.atan2(-p.tx,-p.tz);for(const side of [-1,1]){const x=p.x-p.tz*side*(road.width/2-.16),z=p.z+p.tx*side*(road.width/2-.16);batch.box(guard,x,p.y+.75,z,.13,.13,5.2,yaw);batch.box(guard,x,p.y+.35,z,.13,.09,5.2,yaw);batch.box(guard,x,p.y+.45,z,.12,.9,.12);colliders.push({x,z,hx:.2,hz:2.5,yaw,y:p.y,height:.9,type:'bridge-rail',indestructible:true});}if(Math.floor(d)%25<5)batch.box(stone,p.x,(p.y-4)/2,p.z,2,p.y+4,2);}
+ for(const road of [network.coast])for(let d=3;d<road.length;d+=5){const p=sampleRoad(road,d);if(p.y<4||waterDistance(p.x,p.z)>24)continue;const yaw=Math.atan2(-p.tx,-p.tz);for(const side of [-1,1]){const x=p.x-p.tz*side*(road.width/2-.16),z=p.z+p.tx*side*(road.width/2-.16);const part={x,z,hx:.2,hz:2.6,yaw,y:p.y,height:.9,type:'bridge-rail',objects:[]};colliders.push(part);batch.owner=part;batch.box(guard,x,p.y+.75,z,.13,.13,5.2,yaw);batch.box(guard,x,p.y+.35,z,.13,.09,5.2,yaw);batch.box(guard,x,p.y+.45,z,.12,.9,.12);batch.owner=null;}if(Math.floor(d)%25<5)batch.box(stone,p.x,(p.y-4)/2,p.z,2,p.y+4,2);}
  // Marina: quay, boardwalk, piers, striped bollards and a small harbour office.
- batch.box(stone,876,-.18,350,52,.4,52);batch.box(timber,915,-.05,350,64,.3,5);
- for(const z of [326,374]){batch.box(timber,931,-.18,z,5,.25,43);for(let i=0;i<4;i++)batch.add(trunk,timber,931,-2,z-18+i*12,.16,4,.16);}
+ batch.box(stone,876,-.18,350,52,.4,52);for(let x=885;x<947;x+=4){const part={x,z:350,y:-.2,hx:2,hz:2.5,height:.3,type:'pier',surface:true,objects:[]};colliders.push(part);batch.owner=part;batch.box(timber,x,-.05,350,4,.3,5);batch.owner=null;}
+ for(const z of [326,374]){for(let dz=-20;dz<=20;dz+=4){const part={x:931,z:z+dz,y:-.305,hx:2.5,hz:2,height:.25,type:'pier',surface:true,objects:[]};colliders.push(part);batch.owner=part;batch.box(timber,931,-.18,z+dz,5,.25,4);batch.owner=null;}for(let i=0;i<4;i++)batch.add(trunk,timber,931,-2,z-18+i*12,.16,4,.16);}
  for(const z of [330,340,360,370]){batch.add(trunk,roof,900,.25,z,.18,.7,.18);batch.add(trunk,m.white,900,.4,z,.19,.2,.19);}
  const office={x:860,z:330,hx:7,hz:5,y:0,height:4,type:'building',objects:[]};colliders.push(office);batch.owner=office;batch.box(timber,860,2,330,14,4,10);batch.box(roof,860,4.2,330,16,.3,12);batch.box(glass,860,2.2,335.1,11,2.6,.1);sign(860,3.5,335.2,['SATOYAMA MARINA'],'#24595c',12,1.1);batch.owner=null;
  sign(884,2.8,346,['水上変形  →'],'#24595c',5,1.1);sign(866,2.2,364,['海へ、川へ。'],'#24595c',6,1.2);
@@ -70,7 +70,7 @@ export function createExpansion(scene,batch,m,network,colliders,sign,streetLight
  for(const road of [network.coast,network.mallRoad])for(let d=40;d<road.length;d+=65){const p=sampleRoad(road,d),x=p.x+p.tz*(road.width/2+1.8),z=p.z-p.tx*(road.width/2+1.8);batch.box(roof,x,p.y+3.8,z,.11,7.6,.11);batch.box(m.lamp,x,p.y+7.5,z,1.4,.13,.4);streetLights.push({x,y:p.y+7.2,z});}
  // Scenic overlook rests on the high pass; no solid obstacles across the road.
  const lookout=sampleRoad(network.mountain,network.mountain.length*.54);sign(lookout.x-8,lookout.y+3,lookout.z,['雲見峠  ·  海を望む道'],'#315b59',10,1.8);
- for(let d=0;d<network.mountain.length;d+=5){const p=sampleRoad(network.mountain,d),yaw=Math.atan2(-p.tx,-p.tz);for(const side of [-1,1]){const x=p.x-p.tz*side*4.4,z=p.z+p.tx*side*4.4;batch.box(guard,x,p.y+.65,z,.1,.22,5.15,yaw,Math.atan(p.grade));batch.box(guard,x,p.y+.35,z,.1,.7,.1);}}
+ for(let d=0;d<network.mountain.length;d+=5){const p=sampleRoad(network.mountain,d),yaw=Math.atan2(-p.tx,-p.tz);for(const side of [-1,1]){const x=p.x-p.tz*side*4.4,z=p.z+p.tx*side*4.4;const part={x,z,hx:.15,hz:2.6,yaw,y:p.y,height:.9,type:'barrier',objects:[]};colliders.push(part);batch.owner=part;batch.box(guard,x,p.y+.65,z,.1,.22,5.15,yaw,Math.atan(p.grade));batch.box(guard,x,p.y+.35,z,.1,.7,.1);batch.owner=null;}}
  const water=createWater(scene),ambience=createValleyAtmosphere(scene);
  return {update(time,sky,state){water.update(time);ambience.update(time,sky,state);},mall,garage:GARAGE};
 }
@@ -85,7 +85,7 @@ function createWater(scene){
  function quad(x0,z0,x1,z1,x2,z2,x3,z3){const b=pos.length/3;pos.push(x0,WATER_LEVEL,z0,x1,WATER_LEVEL,z1,x2,WATER_LEVEL,z2,x3,WATER_LEVEL,z3);indices.push(b,b+2,b+1,b,b+3,b+2);}
  quad(910,-2200,2200,-2200,2200,2200,910,2200);quad(600,660,910,660,910,840,600,840);
  for(let z=-1120;z<820;z+=10){const a=riverCenter(z),b=riverCenter(z+10),wa=riverWidth(z),wb=riverWidth(z+10);quad(a-wa,z,a+wa,z,b+wb,z+10,b-wb,z+10);}
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setIndex(indices);g.computeVertexNormals();const mesh=new T.Mesh(g,material);mesh.receiveShadow=true;scene.add(mesh);
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setIndex(indices);g.computeVertexNormals();const mesh=new T.Mesh(g,material);mesh.userData.terrain=true;mesh.receiveShadow=true;scene.add(mesh);
  return {update(time){if(shader)shader.uniforms.waterTime.value=time;}};
 }
 function createValleyAtmosphere(scene){

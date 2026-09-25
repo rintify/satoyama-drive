@@ -1,4 +1,4 @@
-import {clamp} from './simulation.js?v=11';
+import {clamp} from './simulation.js?v=12';
 const G=9.81;
 // Accessible fixed-wing game model: aerodynamic lift, drag and coordinated turns.
 // Speeds are m/s; pitch is nose-up, bank is right-wing-down, all angles in radians.
@@ -36,10 +36,12 @@ export function distanceToBox(p,b){const c=Math.cos(b.yaw||0),s=Math.sin(b.yaw||
 export class MissileSystem{
  constructor(onExplode=()=>{}){this.items=[];this.cooldown=0;this.shots=0;this.onExplode=onExplode;}
  fire(origin,direction){if(this.cooldown>0||this.items.length>=6)return null;const length=Math.hypot(direction.x,direction.y,direction.z);if(length<.01)return null;const m={...origin,vx:direction.x/length*90,vy:direction.y/length*90,vz:direction.z/length*90,life:0,id:++this.shots};this.items.push(m);this.cooldown=1.1;return m;}
- step(dt,targets,groundHeight=()=>0){this.cooldown=Math.max(0,this.cooldown-dt);const alive=[];for(const m of this.items){m.life+=dt;const end={x:m.x+m.vx*dt,y:m.y+m.vy*dt,z:m.z+m.vz*dt};let first=1,target=null;for(const b of targets){const t=segmentHit(m,end,b);if(t!==null&&t<first){first=t;target=b;}}
+ step(dt,targets,groundHeight=()=>0){this.cooldown=Math.max(0,this.cooldown-dt);const alive=[];for(const m of this.items){m.life+=dt;const end={x:m.x+m.vx*dt,y:m.y+m.vy*dt,z:m.z+m.vz*dt};let first=1,target=null;for(const b of (typeof targets==='function'?targets(m,end):targets)){const t=segmentHit(m,end,b);if(t!==null&&t<first){first=t;target=b;}}
  const ground=groundHeight(end.x,end.z);let terrain=false;if(end.y<=ground+.1){const t=m.y>ground+.1?clamp((m.y-ground-.1)/(m.y-end.y),0,1):0;if(t<first){first=t;target=null;terrain=true;}}
  if(target||terrain){const hit={x:m.x+(end.x-m.x)*first,y:m.y+(end.y-m.y)*first,z:m.z+(end.z-m.z)*first};this.onExplode(hit,target);continue;}Object.assign(m,end);if(m.life<4.5)alive.push(m);}this.items=alive;}
 }
 
 // Forward axis stays fixed to the car, independent of camera look direction.
 export function vehicleLaunchPose(s){const pitch=s.flight?s.flightPitch||0:s.launchPitch||0,bank=s.flight?-(s.flightBank||0):0,c=Math.cos(s.yaw),n=Math.sin(s.yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),cb=Math.cos(bank),sb=Math.sin(bank),lx=-.95*sb,ly=.95*cb,up=ly*cp+2.8*sp,lz=ly*sp-2.8*cp;return {origin:{x:s.x+lx*c+lz*n,y:s.y+up,z:s.z-lx*n+lz*c},direction:{x:-n*cp,y:sp,z:-c*cp}};}
+
+export function footLaunchPose(s){const yaw=s.yaw,pitch=s.aimPitch||0,cp=Math.cos(pitch),sp=Math.sin(pitch),direction={x:-Math.sin(yaw)*cp,y:sp,z:-Math.cos(yaw)*cp};return {origin:{x:s.x+Math.cos(yaw)*.3+direction.x*.8,y:s.y+1.38+direction.y*.8,z:s.z-Math.sin(yaw)*.3+direction.z*.8},direction};}

@@ -1,8 +1,8 @@
 import * as T from '../vendor/three.module.js';
-import {nearestRoad,sampleRoad} from './road-network.js?v=11';
+import {nearestRoad,sampleRoad} from './road-network.js?v=12';
 export function createUrbanDistrict(scene,batch,m,network,colliders,sign,tree,house,streetLights,nightMaterials){
  const pavement=new T.MeshStandardMaterial({color:'#8c9292',roughness:.95}),stone=new T.MeshStandardMaterial({color:'#c1c5c4',roughness:.85}),office=new T.MeshStandardMaterial({color:'#8b9da3',metalness:.65,roughness:.2}),frame=new T.MeshStandardMaterial({color:'#434d54',metalness:.5,roughness:.35}),warm=new T.MeshStandardMaterial({color:'#dcc3a1',emissive:'#927440',emissiveIntensity:.16}),blue=new T.MeshStandardMaterial({color:'#234c68',roughness:.6}),orange=new T.MeshStandardMaterial({color:'#d47b40',roughness:.6});
- office.emissive.set('#a4bacf');nightMaterials.push({material:warm,day:.16,night:1.2},{material:office,night:.065});
+ office.emissive.set('#a4bacf');nightMaterials.push({material:warm,day:.16,night:1.8},{material:office,night:.20});
  const colors=[m.walls[0],m.walls[1],stone,m.walls[3]],shopNames=['桜町銀行','駅前薬局','珈琲 日和','さくら書店','SATOYAMA HOTEL','暮らしの雑貨'];
  const reserved=(x,z)=>x>86&&x<154&&z>370&&z<432;
  function clear(x,z,w,d){if(reserved(x,z))return false;const r=nearestRoad(network.roads,x,z);if(r.distance<Math.max(w,d)/2+r.road.width/2+2.1)return false;return !colliders.some(c=>Math.abs(c.x-x)<c.hx+w/2+1.3&&Math.abs(c.z-z)<c.hz+d/2+1.3);}
@@ -11,7 +11,7 @@ export function createUrbanDistrict(scene,batch,m,network,colliders,sign,tree,ho
   const collider={x,z,hx:w/2,hz:d/2,y:0,height:h+1.8,type:'building',objects:[]};colliders.push(collider);batch.owner=collider;batch.box(pavement,x,.06,z,w+2,.12,d+2);batch.box(wall,x,h/2,z,w,h,d);
   batch.box(frame,x,h+.1,z,w+.6,.25,d+.6);batch.box(stone,x,h+.65,z-1,w*.45,1.1,d*.4);batch.box(frame,x+2,h+1.4,z-1,2,.4,1.5);
   for(let f=1;f<=floors;f++){const y=f*3.2+1.4;batch.box(frame,x,y-1.25,z,w+.1,.12,d+.1);
-   for(const side of [-1,1]){for(let col=-w/2+1.7;col<w/2-1;col+=2.9){const glass=(f+Math.round(col*4)+index)%7===0?warm:office;batch.box(glass,x+col,y,z+side*(d/2+.035),2.28,2.25,.06);if(!isGlass){batch.box(stone,x+col,y-1.18,z+side*(d/2+.45),2.65,.14,.85);batch.box(frame,x+col,y-.7,z+side*(d/2+.87),2.62,.8,.04);}}
+   for(const side of [-1,1]){for(let col=-w/2+1.7;col<w/2-1;col+=2.9){const glass=(f+Math.round(col*4)+index)%7<3?warm:office;batch.box(glass,x+col,y,z+side*(d/2+.035),2.28,2.25,.06);if(!isGlass){batch.box(stone,x+col,y-1.18,z+side*(d/2+.45),2.65,.14,.85);batch.box(frame,x+col,y-.7,z+side*(d/2+.87),2.62,.8,.04);}}
     for(let col=-d/2+1.8;col<d/2-1;col+=3)batch.box(office,x+side*(w/2+.035),y,z+col,.06,2.15,2.3);
    }
   }

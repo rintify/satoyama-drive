@@ -1,10 +1,10 @@
 import * as T from '../vendor/three.module.js';
-import {createRoadNetwork,nearestRoad,sampleRoad} from './road-network.js?v=11';
-import {createExpansion} from './expansion.js?v=11';
-import {waterBed,waterDistance} from './waterways.js?v=11';
-import {createUrbanDistrict} from './urban.js?v=11';
-import {renderRoadNetwork} from './road-renderer.js?v=11';
-export {nearestRoad,sampleRoad} from './road-network.js?v=11';
+import {createRoadNetwork,nearestRoad,sampleRoad} from './road-network.js?v=12';
+import {createExpansion} from './expansion.js?v=12';
+import {waterBed,waterDistance} from './waterways.js?v=12';
+import {createUrbanDistrict} from './urban.js?v=12';
+import {renderRoadNetwork} from './road-renderer.js?v=12';
+export {nearestRoad,sampleRoad} from './road-network.js?v=12';
 export const WORLD_SEED = 427;
 let seed = WORLD_SEED;
 const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
@@ -27,16 +27,16 @@ export function createWorld(scene,assets){
  const scaled=(source,x,y=x)=>{const map=source.map.clone();map.repeat.set(x,y);map.needsUpdate=true;const normalMap=source.normalMap?.clone();if(normalMap){normalMap.repeat.set(x,y);normalMap.needsUpdate=true;}return normalMap?{map,normalMap}:{map};};
  const roadMaps=scaled(assets.road,.22),wallMaps=scaled(assets.plaster,3,2),concreteMaps=scaled(assets.concrete,2,1),roofMaps=scaled(assets.roof,2.1,2.4);
  const materials={road:mat('#bdc0c2',{...roadMaps,normalScale:new T.Vector2(.45,.45),roughness:.92}),ground:mat('#a8b59b',{...scaled(assets.grass,880),normalScale:new T.Vector2(.28,.28)}),concrete:mat('#b3b1a7',{...concreteMaps,normalScale:new T.Vector2(.2,.2)}),curb:mat('#c6c9c1'),white:mat('#e0e1d4'),yellow:mat('#cda34f'),metal:mat('#82918c',{metalness:.65,roughness:.42}),dark:mat('#283336'),glass:mat('#72929a',{metalness:.82,roughness:.16}),wood:mat('#5d4d3d',{...scaled(assets.bark,2,3)}),leaf:[mat('#607445'),mat('#4c643d'),mat('#859560'),mat('#6b8750')],walls:[mat('#e4ddca',wallMaps),mat('#bec0b6',wallMaps),mat('#a79882',wallMaps),mat('#636967',wallMaps),mat('#d2cbc0',wallMaps)],roofs:[mat('#687878',{...roofMaps,normalScale:new T.Vector2(.6,.6),roughness:.7}),mat('#716659',{...roofMaps,normalScale:new T.Vector2(.6,.6)}),mat('#526263',{...roofMaps,normalScale:new T.Vector2(.6,.6),roughness:.65})]};
- materials.lamp=mat('#eaf2f0',{emissive:'#ffdda8',emissiveIntensity:0});materials.glass.emissive.set('#d8b97e');nightMaterials.push({material:materials.lamp,night:2.2},{material:materials.glass,night:.15});
+ materials.lamp=mat('#eaf2f0',{emissive:'#ffdda8',emissiveIntensity:0});materials.glass.emissive.set('#d8b97e');nightMaterials.push({material:materials.lamp,night:2.2},{material:materials.glass,night:.35});
  materials.walls.forEach((m,i)=>m.color.multiplyScalar(i===3?1.45:2.0));
  const foliage=new T.MeshStandardMaterial({map:assets.leaves.map,alphaMap:assets.leaves.alphaMap,alphaTest:.42,side:T.DoubleSide,roughness:1,color:'#a3af88'});
  const leafPlane=new T.PlaneGeometry(1,1),branchGeo=new T.CylinderGeometry(.35,1,1,7);
 
- const ground=new T.Mesh(new T.PlaneGeometry(4400,4400,220,220),materials.ground);ground.geometry.rotateX(-Math.PI/2);const gp=ground.geometry.attributes.position;for(let i=0;i<gp.count;i++)gp.setY(i,waterBed(gp.getX(i),gp.getZ(i)));ground.geometry.computeVertexNormals();ground.receiveShadow=true;scene.add(ground);
+ const ground=new T.Mesh(new T.PlaneGeometry(4400,4400,220,220),materials.ground);ground.geometry.rotateX(-Math.PI/2);const gp=ground.geometry.attributes.position;for(let i=0;i<gp.count;i++)gp.setY(i,waterBed(gp.getX(i),gp.getZ(i)));ground.geometry.computeVertexNormals();ground.userData.terrain=true;ground.receiveShadow=true;scene.add(ground);
  const intersections=junctions.filter(j=>j.signal);
  materials.barrier=materials.concrete.clone();materials.barrier.side=T.DoubleSide;materials.curb.side=T.DoubleSide;
  materials.bank=mat('#a3ad86',{...scaled(assets.grass,.2),side:T.DoubleSide});
- renderRoadNetwork(scene,batch,materials,network);
+ renderRoadNetwork(scene,batch,materials,network,colliders);
  // The avenue carries a tram beside, rather than through, the driving lanes.
  for(const z of [151,149.5])batch.box(materials.metal,67,.1,z,460,.08,.08);
  for(let x=-160;x<300;x+=1.8)batch.box(materials.wood,x,.065,150.25,.22,.04,2.6);
@@ -118,14 +118,16 @@ export function createWorld(scene,assets){
  for(let x=-220;x<=215;x+=50)for(let z=-585;z< -235;z+=48){const n=nearestRoad(roads,x,z);if(n.distance<35)continue;batch.box(fields[Math.floor(rand()*4)],x,.0,z,44,.06,42);batch.box(water,x+24,.01,z,1.2,.03,46);for(let j=-19;j<21;j+=3)batch.box(materials.leaf[3],x+j,.13,z,.18,.15,40);}
  for(let i=0;i<200;i++){const x=-300+rand()*850,z=-790+rand()*1120;const n=nearestRoad(roads,x,z);if(n.distance<Math.max(15,n.y*1.5+8)||colliders.some(c=>Math.abs(c.x-x)<c.hx+3&&Math.abs(c.z-z)<c.hz+3))continue;if(x>-190&&x<35&&z>-210&&z<210)continue;tree(x,z,.8+rand()*1.3);}
  const mountains=new T.PlaneGeometry(4200,4200,110,110);mountains.rotateX(-Math.PI/2);const mp=mountains.attributes.position;
- for(let i=0;i<mp.count;i++){const x=mp.getX(i),z=mp.getZ(i)-220;const edge=Math.max(Math.abs(x-70)-600,Math.abs(z+200)-820);const blend=T.MathUtils.smoothstep(edge,0,420);const broad=Math.sin(x*.0032+Math.cos(z*.002))*Math.cos(z*.0034);const detail=Math.sin(x*.011+z*.007)*Math.sin(z*.009-x*.005);mp.setXYZ(i,x,waterDistance(x,z)<18?waterBed(x,z)-.4:blend*(180+135*broad+45*detail)-.2,z);}mountains.computeVertexNormals();const mountainMesh=new T.Mesh(mountains,mat('#637667',{map:scaled(assets.grass,180).map,roughness:1}));mountainMesh.receiveShadow=true;scene.add(mountainMesh);
+ for(let i=0;i<mp.count;i++){const x=mp.getX(i),z=mp.getZ(i)-220;const edge=Math.max(Math.abs(x-70)-600,Math.abs(z+200)-820);const blend=T.MathUtils.smoothstep(edge,0,420);const broad=Math.sin(x*.0032+Math.cos(z*.002))*Math.cos(z*.0034);const detail=Math.sin(x*.011+z*.007)*Math.sin(z*.009-x*.005);mp.setXYZ(i,x,waterDistance(x,z)<18?waterBed(x,z)-.4:blend*(180+135*broad+45*detail)-.2,z);}mountains.computeVertexNormals();const mountainMesh=new T.Mesh(mountains,mat('#637667',{map:scaled(assets.grass,180).map,roughness:1}));mountainMesh.userData.terrain=true;mountainMesh.receiveShadow=true;scene.add(mountainMesh);
 
  // Small rural houses and a torii beside the scenic route.
  for(let i=0;i<7;i++)house(-132-i%2*22,-285-i*42,9,11,5.3,houseIndex++);
  const red=mat('#a64830');for(const x of [-30,-24])batch.add(cylinderGeo,red,x,3.1,-527,.26,6.2,.26);batch.box(red,-27,5.6,-527,9,.38,.48);batch.box(materials.dark,-27,6.35,-527,10,.35,.8);
  for(let z=-510;z<=-492;z+=3)batch.box(materials.concrete,-27,.1,z,4,.2,2);
+ // Reuse instanced street furniture and a fixed pool of nearby real lights.
+ for(const road of roads.filter(r=>['town','station','mall'].includes(r.area)))for(let d=15;d<road.length;d+=34){const q=sampleRoad(road,d),side=Math.floor(d/34)%2?1:-1,x=q.x-q.tz*side*(road.widthAt(d)/2+2),z=q.z+q.tx*side*(road.widthAt(d)/2+2);if(streetLights.some(l=>Math.hypot(l.x-x,l.z-z)<18))continue;const pole={x,z,y:q.y,hx:.15,hz:.15,height:6.3,type:'pole',objects:[]};colliders.push(pole);batch.owner=pole;batch.add(cylinderGeo,materials.metal,x,q.y+3,z,.07,6,.07);batch.box(materials.lamp,x,q.y+6,z,.8,.12,.5);batch.owner=null;streetLights.push({x,y:q.y+5.8,z,owner:pole});}
  const expansion=createExpansion(scene,batch,materials,network,colliders,sign,streetLights,nightMaterials,assets);
  batch.finish();
- const grid=new Map();for(const c of colliders){for(let x=Math.floor((c.x-c.hx)/20);x<=Math.floor((c.x+c.hx)/20);x++)for(let z=Math.floor((c.z-c.hz)/20);z<=Math.floor((c.z+c.hz)/20);z++){const key=x+','+z;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(c);}}
+ const grid=new Map();for(const c of colliders){const co=Math.abs(Math.cos(c.yaw||0)),si=Math.abs(Math.sin(c.yaw||0)),rx=co*c.hx+si*c.hz,rz=si*c.hx+co*c.hz;for(let x=Math.floor((c.x-rx)/20);x<=Math.floor((c.x+rx)/20);x++)for(let z=Math.floor((c.z-rz)/20);z<=Math.floor((c.z+rz)/20);z++){const key=x+','+z;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(c);}}
  return {...network,urban,expansion,streetLights,nightMaterials,buildingCount:colliders.filter(c=>c.type==='building').length,roads,signals,colliders,grid,materials,rural,highway,hill,intersections};
 }

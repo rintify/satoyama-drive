@@ -28,20 +28,20 @@ export function createDaylight(scene,renderer,assets,sun,ambient,world,car,traff
  const sky=new T.Mesh(new T.SphereGeometry(1800,32,16),skyMaterial);sky.frustumCulled=false;sky.renderOrder=-100;scene.add(sky);scene.background=null;
  const beam=new T.SpotLight('#e8f2ff',0,75,.46,.64,2);beam.position.set(0,.78,-2.26);beam.target.position.set(0,-.35,-38);beam.castShadow=true;beam.shadow.mapSize.set(512,512);beam.shadow.bias=-.0004;beam.shadow.normalBias=.04;beam.shadow.camera.near=.15;car.root.add(beam,beam.target);
  // A fixed light pool avoids one real-time light per street lamp across the entire town.
- const lamps=Array.from({length:4},()=>{const light=new T.PointLight('#ffdaa3',0,27,2);scene.add(light);return light;});
+ const lamps=Array.from({length:6},()=>{const light=new T.PointLight('#ffdaa3',0,42,2);scene.add(light);return light;});
  const nightFog=new T.Color('#19283c'),dayFog=new T.Color('#bacbd1'),warmFog=new T.Color('#c68c77'),nightSky=new T.Color('#64799e'),daySky=new T.Color('#e1edf3'),duskSky=new T.Color('#e6a885'),nightGround=new T.Color('#29394a'),dayGround=new T.Color('#67705b'),sunDay=new T.Color('#fff2db'),sunDusk=new T.Color('#ff9760'),moonColor=new T.Color('#9db7e7');
  const direction=new T.Vector3();let lightTimer=1,lastNight=-1;
  return {update(sample,state,dt=0){
   const {daylight,night,twilight}=sample;sky.position.set(state.x,state.y,state.z);uniforms.sunDirection.value.fromArray(sample.sunDirection);uniforms.daylight.value=daylight;uniforms.night.value=night;uniforms.twilight.value=twilight;
-  ambient.color.copy(nightSky).lerp(daySky,daylight).lerp(duskSky,twilight*.32);ambient.groundColor.copy(nightGround).lerp(dayGround,daylight);ambient.intensity=.21+.44*daylight;
-  scene.fog.color.copy(nightFog).lerp(dayFog,daylight).lerp(warmFog,twilight*.48);scene.fog.density=.00075+night*.00035;scene.environmentIntensity=.035+.615*daylight;renderer.toneMappingExposure=.94+night*.10;
-  direction.fromArray(sample.sunDirection);if(direction.y<0)direction.negate();sun.position.set(state.x+direction.x*135,state.y+Math.max(.06,direction.y)*135,state.z+direction.z*135);sun.target.position.set(state.x,state.y,state.z);sun.target.updateMatrixWorld();sun.color.copy(moonColor).lerp(sunDay,daylight).lerp(sunDusk,twilight*daylight);sun.intensity=.13*night+2.9*Math.max(0,sample.elevation);
+  ambient.color.copy(nightSky).lerp(daySky,daylight).lerp(duskSky,twilight*.32);ambient.groundColor.copy(nightGround).lerp(dayGround,daylight);ambient.intensity=.48+.17*daylight;
+  scene.fog.color.copy(nightFog).lerp(dayFog,daylight).lerp(warmFog,twilight*.48);scene.fog.density=.00075+night*.00035;scene.environmentIntensity=.14+.51*daylight;renderer.toneMappingExposure=.94+night*.14;
+  direction.fromArray(sample.sunDirection);if(direction.y<0)direction.negate();sun.position.set(state.x+direction.x*135,state.y+Math.max(.06,direction.y)*135,state.z+direction.z*135);sun.target.position.set(state.x,state.y,state.z);sun.target.updateMatrixWorld();sun.color.copy(moonColor).lerp(sunDay,daylight).lerp(sunDusk,twilight*daylight);sun.intensity=.32*night+2.9*Math.max(0,sample.elevation);
   beam.intensity=12500*night;beam.visible=night>.005;
   lightTimer+=dt;if(lightTimer>=.2||Math.abs(night-lastNight)>.02){lightTimer=0;lastNight=night;
    for(const c of [car,...traffic.cars.map(c=>c.model)])c.setNight(night);
    for(const {material,day=0,night:power}of world.nightMaterials)material.emissiveIntensity=day+(power-day)*night;
-   const nearest=world.streetLights.map(p=>({p,d:(p.x-state.x)**2+(p.z-state.z)**2+(p.y-state.y-2)**2})).filter(v=>v.d<55**2).sort((a,b)=>a.d-b.d).slice(0,lamps.length);
-   lamps.forEach((light,i)=>{const v=nearest[i];light.intensity=v?95*(v.p.indoor?Math.max(.6,night):night):0;if(v)light.position.set(v.p.x,v.p.y,v.p.z);});
+   const nearest=world.streetLights.filter(p=>!p.owner?.destroyed).map(p=>({p,d:(p.x-state.x)**2+(p.z-state.z)**2+(p.y-state.y-2)**2})).filter(v=>v.d<75**2).sort((a,b)=>a.d-b.d).slice(0,lamps.length);
+   lamps.forEach((light,i)=>{const v=nearest[i];light.intensity=v?240*(v.p.indoor?Math.max(.6,night):night):0;if(v)light.position.set(v.p.x,v.p.y,v.p.z);});
   }
  }};
 }

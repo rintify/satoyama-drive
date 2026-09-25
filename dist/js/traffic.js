@@ -1,7 +1,7 @@
 import * as T from '../vendor/three.module.js';
-import {createCar,createPerson,createTram} from './vehicle.js?v=11';
-import {createAgent,positionAgent,stepTraffic,seedFollowers,rearTraffic} from './traffic-ai.js?v=11';
-import {clamp} from './simulation.js?v=11';
+import {createCar,createPerson,createTram} from './vehicle.js?v=12';
+import {createAgent,positionAgent,stepTraffic,seedFollowers,rearTraffic} from './traffic-ai.js?v=12';
+import {clamp} from './simulation.js?v=12';
 export function createTraffic(scene,world){
  const cars=[],people=[];const colors=['#dadcd2','#879791','#455964','#b8afa0','#563c3b','#cbd6d7'];
  const counts=[6,6,5,10,5,4,8,5,6,5,5,6,4];
@@ -12,17 +12,18 @@ export function createTraffic(scene,world){
  // Two crossing events are proximity-triggered and reset only once the car leaves.
  for(const [x,z]of [[-6.2,43],[6.3,-58]]){const p=createPerson(true);scene.add(p.root);people.push({...p,x,z,startX:x,startZ:z,direction:x<0?1:-1,phase:'waiting',timer:0,triggered:false,event:true});}
  const tram=createTram();scene.add(tram.root);tram.root.rotation.y=Math.PI/2;let tramX=-105,tramDir=1,tramWait=0,trafficTimer=0;
+ const tramState={x:tramX,y:.11,z:150.3,hx:1.2,hz:5.5,height:3.8,yaw:-Math.PI/2,type:'tram',objects:[tram.root]};for(const p of people)Object.assign(p,{type:'person',hx:.26,hz:.26,y:.12,height:p.child?1.2:1.8});
  function syncCars(dt){for(const c of cars){if(c.destroyed){c.model.root.visible=false;continue;}c.model.root.position.set(c.x,c.y+.035,c.z);c.model.root.rotation.set(Math.atan(c.grade),c.yaw,0,'YXZ');c.model.animate(clamp(c.steer||0,-.6,.6),c.speed,dt,c.braking,c.signal);}}
  function update(dt,time,state,phase,ambulance=null,extraObstacles=[]){
-  stepTraffic(ambulance?[...cars,ambulance]:cars,dt,state,world.roads,world.junctions,people,phase,world.stops,extraObstacles);
+  stepTraffic(ambulance?[...cars,ambulance]:cars,dt,state,world.roads,world.junctions,people.filter(p=>!p.destroyed),phase,world.stops,extraObstacles);
   trafficTimer+=dt;if(trafficTimer>12){trafficTimer=0;if(!rearTraffic(cars,state))seedFollowers(cars,state,world.roads,{distant:true});}
   syncCars(dt);
-  for(const p of people){p.timer+=dt;if(p.event){if(p.phase==='waiting'&&Math.abs(state.z-p.z)<29&&Math.abs(state.z-p.z)>10&&Math.abs(state.x)<7&&Math.abs(state.speed)>1&&!p.triggered){p.phase='cross';p.triggered=true;p.timer=0;}if(p.phase==='cross'){p.x+=p.direction*2.5*dt;if(Math.abs(p.x)>6.5){p.phase='done';p.timer=0;}}if(p.phase==='done'&&Math.hypot(state.x-p.x,state.z-p.z)>90){p.x=p.startX;p.phase='waiting';p.triggered=false;}}else{const axis=p.axis||'z';p[axis]+=p.direction*.67*dt;if(p[axis]>(p.max??140)||p[axis]<(p.min??-142))p.direction*=-1;}
+  for(const p of people){if(p.destroyed)continue;p.timer+=dt;if(p.event){if(p.phase==='waiting'&&Math.abs(state.z-p.z)<29&&Math.abs(state.z-p.z)>10&&Math.abs(state.x)<7&&Math.abs(state.speed)>1&&!p.triggered){p.phase='cross';p.triggered=true;p.timer=0;}if(p.phase==='cross'){p.x+=p.direction*2.5*dt;if(Math.abs(p.x)>6.5){p.phase='done';p.timer=0;}}if(p.phase==='done'&&Math.hypot(state.x-p.x,state.z-p.z)>90){p.x=p.startX;p.phase='waiting';p.triggered=false;}}else{const axis=p.axis||'z';p[axis]+=p.direction*.67*dt;if(p[axis]>(p.max??140)||p[axis]<(p.min??-142))p.direction*=-1;}
    p.root.position.set(p.x,.12,p.z);p.root.rotation.y=(p.event||p.axis==='x')?(p.direction===1?-Math.PI/2:Math.PI/2):(p.direction===1?Math.PI:0);const walk=p.phase==='cross'||!p.event;for(let i=0;i<4;i++)p.limbs[i].rotation.x=walk?Math.sin(p.timer*(p.child?10:5)+i%2*Math.PI)*.45:0;
   }
-  if(tramWait>0)tramWait-=dt;else{const prev=tramX;tramX+=tramDir*6*dt;for(const stop of [60,210])if((prev-stop)*(tramX-stop)<0)tramWait=4;}if(tramX>282||tramX< -145){tramDir*=-1;tramX=clamp(tramX,-145,282);}tram.root.position.set(tramX,.11,150.3);tram.root.rotation.y=tramDir===1?-Math.PI/2:Math.PI/2;
+  if(!tramState.destroyed){if(tramWait>0)tramWait-=dt;else{const prev=tramX;tramX+=tramDir*6*dt;for(const stop of [60,210])if((prev-stop)*(tramX-stop)<0)tramWait=4;}if(tramX>282||tramX< -145){tramDir*=-1;tramX=clamp(tramX,-145,282);}tram.root.position.set(tramX,.11,150.3);tram.root.rotation.y=tramDir===1?-Math.PI/2:Math.PI/2;Object.assign(tramState,{x:tramX,yaw:tram.root.rotation.y});}
  }
  // Establish positions before the first collision/render pass.
  update(0,0,{x:Infinity,z:Infinity},'green');
- return {cars,people,tram,update,seedFollowers(state){seedFollowers(cars,state,world.roads);syncCars(0);},rear(state){return rearTraffic(cars,state);},get tramState(){return {x:tramX,z:150.3,hx:5.5,hz:1.2};}};
+ return {cars,people,tram,update,seedFollowers(state){seedFollowers(cars,state,world.roads);syncCars(0);},rear(state){return rearTraffic(cars,state);},tramState};
 }
