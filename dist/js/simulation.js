@@ -32,7 +32,7 @@ export function stepVehicle(s,dt,offroad=false,slope=0){
 }
 export function carCorners(s,hx=.88,hz=2.2){const c=Math.cos(s.yaw),si=Math.sin(s.yaw);return [[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]].map(([x,z])=>({x:s.x+x*c+z*si,z:s.z-x*si+z*c}));}
 export function intersectsBox(s,box,padding=0){const corners=carCorners(s,.88+padding,2.2+padding),other=[{x:box.x-box.hx,z:box.z-box.hz},{x:box.x+box.hx,z:box.z-box.hz},{x:box.x+box.hx,z:box.z+box.hz},{x:box.x-box.hx,z:box.z+box.hz}];return polygonOverlap(corners,other);}
-export function carsOverlap(a,b){return polygonOverlap(carCorners(a),carCorners(b));}
+export function carsOverlap(a,b){return polygonOverlap(carCorners(a,a.hx??.88,a.hz??2.2),carCorners(b,b.hx??.88,b.hz??2.2));}
 function polygonOverlap(a,b){for(const poly of [a,b])for(let i=0;i<2;i++){const p=poly[i],q=poly[(i+1)%4],ax=-(q.z-p.z),az=q.x-p.x;let minA=Infinity,maxA=-Infinity,minB=Infinity,maxB=-Infinity;for(const v of a){const n=v.x*ax+v.z*az;minA=Math.min(minA,n);maxA=Math.max(maxA,n);}for(const v of b){const n=v.x*ax+v.z*az;minB=Math.min(minB,n);maxB=Math.max(maxB,n);}if(maxA<minB||maxB<minA)return false;}return true;}
 export function personOverlap(s,p){const dx=p.x-s.x,dz=p.z-s.z,c=Math.cos(s.yaw),si=Math.sin(s.yaw);return Math.abs(dx*c-dz*si)<1.13&&Math.abs(dx*si+dz*c)<2.45;}
 export function lightPhase(time,axis='z'){const t=((time%32)+32)%32;if(axis==='x')return t>=23&&t<29?'green':t>=29&&t<31?'yellow':'red';return t<18?'green':t<21?'yellow':'red';}
@@ -40,7 +40,7 @@ export function crossedStopLine(prev,s,intersection,phase){
  const phases=typeof phase==='string'?{z:phase}:phase;
  for(const axis of Object.keys(phases)){if(phases[axis]!=='red')continue;const lateral=axis==='z'?'x':'z';if(Math.abs(s[lateral]-intersection[lateral])>4.6)continue;const delta=s[axis]-prev[axis],center=intersection[axis];if(delta<0&&prev[axis]>center+11&&s[axis]<=center+11)return true;if(delta>0&&prev[axis]<center-11&&s[axis]>=center-11)return true;}return false;
 }
-export {RuleBook} from './traffic-rules.js';
+export {RuleBook} from './traffic-rules.js?v=6';
 
 // The inside wheel follows a tighter radius than the outside wheel.
 export function ackermannAngles(steer, wheelbase=2.65, track=1.8) {
@@ -50,3 +50,6 @@ export function ackermannAngles(steer, wheelbase=2.65, track=1.8) {
  const outside=Math.atan(wheelbase/(radius+track/2));
  return steer>0?{left:outside,right:inside}:{left:-inside,right:-outside};
 }
+
+// Impact stops movement at the contact; the driver retains gear, pedals and parking brake.
+export function resolveImpact(state,previous){state.x=previous.x;state.z=previous.z;state.speed=0;}

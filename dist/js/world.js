@@ -1,8 +1,8 @@
 import * as T from '../vendor/three.module.js';
-import {createRoadNetwork,nearestRoad,sampleRoad} from './road-network.js';
-import {createUrbanDistrict} from './urban.js?v=5';
-import {renderRoadNetwork} from './road-renderer.js';
-export {nearestRoad,sampleRoad} from './road-network.js';
+import {createRoadNetwork,nearestRoad,sampleRoad} from './road-network.js?v=6';
+import {createUrbanDistrict} from './urban.js?v=6';
+import {renderRoadNetwork} from './road-renderer.js?v=6';
+export {nearestRoad,sampleRoad} from './road-network.js?v=6';
 export const WORLD_SEED = 427;
 let seed = WORLD_SEED;
 const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };

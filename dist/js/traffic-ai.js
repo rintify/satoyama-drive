@@ -1,5 +1,5 @@
-import {sampleRoad,nearestRoad} from './road-network.js';
-import {clamp} from './simulation.js';
+import {sampleRoad,nearestRoad} from './road-network.js?v=6';
+import {clamp} from './simulation.js?v=6';
 const wrap=(d,length)=>((d%length)+length)%length;
 const smooth=t=>t*t*(3-2*t);
 export function createAgent(route,d,dir=1,cruise=14){return {route,d,dir,cruise,speed:0,lane:0,targetLane:0,laneFrom:0,laneTime:3,passTime:0,signal:0,x:0,y:0,z:0,yaw:0,braking:false};}
@@ -7,7 +7,7 @@ export function positionAgent(c,roads){
  const p=sampleRoad(c.route,c.d),roadInfo=nearestRoad(roads,p.x,p.z);
  c.road=roadInfo.road;c.roadD=roadInfo.d;c.fx=p.tx*c.dir;c.fz=p.tz*c.dir;
  const width=c.road.widthAt(c.roadD),normalLane=c.road.highway?Math.max(2.18,width/2-2.35):Math.min(2.18,width/4);
- const lane=normalLane+(1.95-normalLane)*c.lane;
+ const lane=c.emergency?(c.road.highway?1.95:(width>=8?.25:-.15)):normalLane+(1.95-normalLane)*c.lane+(c.yieldShift||0);
  c.x=p.x+p.tz*c.dir*lane;c.z=p.z-p.tx*c.dir*lane;c.y=roadInfo.y;
  c.yaw=Math.atan2(-c.fx,-c.fz);c.grade=roadInfo.grade*(p.tx*roadInfo.tx+p.tz*roadInfo.tz)*c.dir;
  c.canPass=c.road.highway&&c.road.hasBarrier(c.roadD)&&c.roadD>155&&c.roadD<c.road.length-155;
@@ -19,10 +19,14 @@ export function laneClear(c,obstacles,targetLane){
  return !obstacles.some(o=>{if(o===c||Math.abs((o.y||0)-c.y)>2.5)return false;const r=relative(c,o);if(Math.abs(r.side-desiredSide)>2.05)return false;const rearGap=Math.max(18,(r.speed-c.speed)*3.5+12),frontGap=Math.max(18,c.speed*1.1);return r.along>-rearGap&&r.along<frontGap;});
 }
 export function planAgent(c,obstacles,people,junctions,phase,dt,stops=[]){
- let limit=Math.min(c.cruise,c.road.limit/3.6*.94),leader=null,gap=Infinity;
+ let limit=Math.min(c.cruise,c.road.limit/3.6*(c.emergency?1.5:.94)),leader=null,gap=Infinity;
+ const rescue=obstacles.find(o=>o.emergency&&o!==c&&Math.cos(o.yaw-c.yaw)>.6&&Math.abs((o.y||0)-c.y)<2.5&&relative(c,o).along<8&&relative(c,o).along>-75&&Math.abs(relative(c,o).side)<5);
+ const width=c.road.widthAt(c.roadD),normal=c.road.highway?Math.max(2.18,width/2-2.35):Math.min(2.18,width/4),edge=c.road.edgeLineAt?.(c.roadD)??width/2-.25;
+ const yieldTarget=rescue?Math.max(0,Math.min(.85,edge-.88-.12-normal)):0;c.yieldShift=(c.yieldShift||0)+(yieldTarget-(c.yieldShift||0))*(1-Math.exp(-dt*1.4));if(rescue){limit=Math.min(limit,2);c.targetLane=0;c.laneFrom=c.lane;c.laneTime=Math.min(c.laneTime,2.8);c.signal=-1;}
+
  for(const o of obstacles){if(o===c||Math.abs((o.y||0)-c.y)>2.5)continue;const r=relative(c,o);if(r.along>0&&r.along<140&&Math.abs(r.side)<2.05&&r.along<gap){leader=r;gap=r.along;}}
  c.passTime+=dt;
- if(c.targetLane===0&&c.laneTime>=3&&c.canPass&&leader&&gap<75&&c.cruise>leader.speed+2&&laneClear(c,obstacles,1)){
+ if(!rescue&&!c.emergency&&c.targetLane===0&&c.laneTime>=3&&c.canPass&&leader&&gap<75&&c.cruise>leader.speed+2&&laneClear(c,obstacles,1)){
   c.targetLane=1;c.laneFrom=c.lane;c.laneTime=0;c.signal=1;c.passTime=0;
  }else if(c.targetLane===1&&c.laneTime>=3&&c.passTime>4&&laneClear(c,obstacles,0)&&(!leader||gap>20)){
   c.targetLane=0;c.laneFrom=c.lane;c.laneTime=0;c.signal=-1;c.passTime=0;
@@ -31,9 +35,9 @@ export function planAgent(c,obstacles,people,junctions,phase,dt,stops=[]){
  // Leave room to merge before the two-lane section narrows into its ramp.
  if(c.lane>.1&&!c.canPass){const mergeRoom=Math.min(c.roadD-95,c.road.length-95-c.roadD)-25;limit=Math.min(limit,Math.sqrt(Math.max(0,mergeRoom)*3));}
  // Obey marked stop approaches, with a short complete halt before proceeding.
- c.stopHolds??={};for(const stop of stops){const forward=stop.axis==='x'?c.fx:c.fz;if(forward*stop.dir<.7)continue;const other=stop.axis==='x'?'z':'x';if(Math.abs(c[other]-stop[other])>4.8)continue;const dist=(stop[stop.axis]-c[stop.axis])*stop.dir-stop.offset-2.2;let held=c.stopHolds[stop.id]||0;if(dist>45)held=0;if(dist>=0&&dist<3&&c.speed<.05)held+=dt;c.stopHolds[stop.id]=held;if(held<.9&&dist>-.1&&dist<60)limit=Math.min(limit,Math.sqrt(Math.max(0,dist-1.5)*4));}
+ c.stopHolds??={};for(const stop of c.emergency?[]:stops){const forward=stop.axis==='x'?c.fx:c.fz;if(forward*stop.dir<.7)continue;const other=stop.axis==='x'?'z':'x';if(Math.abs(c[other]-stop[other])>4.8)continue;const dist=(stop[stop.axis]-c[stop.axis])*stop.dir-stop.offset-2.2;let held=c.stopHolds[stop.id]||0;if(dist>45)held=0;if(dist>=0&&dist<3&&c.speed<.05)held+=dt;c.stopHolds[stop.id]=held;if(held<.9&&dist>-.1&&dist<60)limit=Math.min(limit,Math.sqrt(Math.max(0,dist-1.5)*4));}
  // Signal approaches are evaluated in the car's own forward frame.
- for(const q of junctions){if(!q.signal||!['town','station'].includes(c.road.area))continue;const r=relative(c,q);if(Math.abs(r.side)>6)continue;const axis=Math.abs(c.fz)>.7?'z':'x';const red=typeof phase==='string'?(axis==='z'?phase!=='green':phase!=='red'):phase[axis]!=='green';const stop=r.along-12;if(red&&stop>-1&&stop<100)limit=Math.min(limit,Math.sqrt(Math.max(0,stop)*4));}
+ for(const q of junctions){if(c.emergency){if(Math.hypot(c.x-q.x,c.z-q.z)<20)limit=Math.min(limit,6);continue;}if(!q.signal||!['town','station'].includes(c.road.area))continue;const r=relative(c,q);if(Math.abs(r.side)>6)continue;const axis=Math.abs(c.fz)>.7?'z':'x';const red=typeof phase==='string'?(axis==='z'?phase!=='green':phase!=='red'):phase[axis]!=='green';const stop=r.along-12;if(red&&stop>-1&&stop<100)limit=Math.min(limit,Math.sqrt(Math.max(0,stop)*4));}
  for(const p of people){const r=relative(c,p);if(r.along>0&&r.along<35&&Math.abs(r.side)<2.2)limit=Math.min(limit,Math.sqrt(Math.max(0,r.along-4)*4));}
  let acceleration=1.6*(1-(c.speed/Math.max(.5,limit))**4);
  if(leader){const closing=c.speed-leader.speed,desired=5.6+Math.max(0,c.speed*1.45+c.speed*closing/(2*Math.sqrt(1.6*3)));acceleration=Math.min(acceleration,1.6*(1-(c.speed/Math.max(1,limit))**4-(desired/Math.max(1,gap))**2));}

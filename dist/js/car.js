@@ -1,5 +1,5 @@
 import * as T from '../vendor/three.module.js';
-import {ackermannAngles} from './simulation.js';
+import {ackermannAngles} from './simulation.js?v=6';
 import {RoundedBoxGeometry} from '../vendor/addons/geometries/RoundedBoxGeometry.js';
 import {mergeGeometries} from '../vendor/addons/utils/BufferGeometryUtils.js';
 

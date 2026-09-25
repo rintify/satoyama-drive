@@ -33,3 +33,12 @@ footer{padding:9px 26px;font-size:9px;letter-spacing:.06em;background:linear-gra
 @media(max-width:600px){.rules-scroll{overflow:visible}#rules-dialog table{display:block;min-width:0}#rules-dialog thead{display:none}#rules-dialog tbody{display:block}#rules-dialog tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;border-bottom:1px solid #c3d5da24;padding:12px 0}#rules-dialog tbody th,#rules-dialog td{display:block;min-width:0;padding:0;border:0}#rules-dialog td:last-child{grid-column:1/-1;color:var(--muted);font-size:13px;line-height:1.7}#rules-dialog td:nth-child(2){font-weight:600}}
 
 .cycle-status{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:12px;color:#d8e4e7;text-shadow:0 1px 4px #051322;white-space:nowrap}.cycle-status time{font:500 16px 'Barlow Condensed',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.04em}.cycle-speed{opacity:.65}#auto-light{color:#d7ecbd;font-size:11px}@media(max-width:600px){.cycle-status{gap:5px;font-size:11px}.cycle-status time{font-size:14px}#auto-light{display:none}}@media(max-height:540px) and (orientation:landscape){.cycle-status{margin-top:2px;font-size:11px}.cycle-status time{font-size:14px}#auto-light{display:none}}
+
+/* Dispatch stays away from the steering and pedal touch targets. */
+.score-box #fine-total{font:10px 'Noto Sans JP',sans-serif;color:#c4d6d7;letter-spacing:0}.score-box #fine-total:after{content:none}
+#dispatch{position:absolute;right:26px;top:158px;width:245px;padding:10px 12px;border-radius:8px;font-size:11px;line-height:1.7;pointer-events:none}#police-status{color:#ffb8ac}#ambulance-status{color:#ebf3f2}#dispatch div+div:not([hidden]){margin-top:5px}#penalty-history b{font-size:12px}
+@media(max-height:540px) and (orientation:landscape){.score-box{display:grid;grid-template-columns:auto auto auto;gap:0 5px}.score-box>span{grid-column:auto}.score-box #fine-total{grid-column:1/-1;font-size:9px;text-align:right}.score-box strong{font-size:23px}#dispatch{top:115px;right:17px;width:213px;padding:6px 9px;font-size:10px;line-height:1.5}}
+@media(orientation:portrait) and (max-width:600px){.score-box #fine-total{font-size:9px}#dispatch{left:12px;right:12px;top:151px;width:auto;padding:5px 10px;font-size:10px;line-height:1.6}.dispatch-active .route-panel,.dispatch-active .view-tools{top:213px}.dispatch-active #toast{top:284px}}
+
+.topbar{background:linear-gradient(#081422db,#08142255 72%,transparent)}
+.area-options button:disabled{opacity:.42;cursor:not-allowed}

@@ -1,5 +1,5 @@
 import * as T from '../vendor/three.module.js';
-import {sampleRoad,nearestRoad} from './road-network.js';
+import {sampleRoad,nearestRoad} from './road-network.js?v=6';
 
 // Surface and paint share the same sampled, height-aware ribbon. UVs are world
 // aligned, so intersecting asphalt meshes cannot produce rotated texture seams.
@@ -16,7 +16,7 @@ export function renderRoadNetwork(scene,batch,materials,network){
    for(const p of points){const nx=-p.tz,nz=p.tx;for(const s of [1,-1])bucket.pos.push(p.x+nx*(offset+s*width/2),p.y+.018,p.z+nz*(offset+s*width/2));}bucket.idx.push(base,base+2,base+1,base+1,base+2,base+3);
   }
   for(let d=0;d<road.length-1;d+=2){const p=sampleRoad(road,d+1),width=road.widthAt(d),crossing=nearJunction(p);
-   if(!crossing){for(const side of [-1,1])mark(d,2.04,side*(width/2-.25),.105);
+   if(!crossing){for(const side of [-1,1])mark(d,2.04,side*road.edgeLineAt(d),.105);
     if(road.highway&&road.hasBarrier(d)){if(Math.floor(d/2)%5<3)for(const side of [-1,1])mark(d,2,side*3.8,.12);}
     else if(road.area==='hill'||road.id==='rural')mark(d,2.03,0,.13,'yellow');
     else if(Math.floor(d/2)%4<2)mark(d,2,0,.12);

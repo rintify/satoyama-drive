@@ -20,6 +20,7 @@ export function makeRoad(id,points,{width=9,limit=30,area='town',radius=16,close
  for(let i=0;i<samples.length;i++){const a=samples[Math.max(0,i-1)],b=samples[Math.min(samples.length-1,i+1)],len=distance(a,b)||1;samples[i].tx=(b.x-a.x)/len;samples[i].tz=(b.z-a.z)/len;}
  const road={id,points,samples,length:samples.at(-1).d,width,limit,area,highway,closed};
  road.widthAt=d=>highway?mix(9,width,clamp(Math.min(d,road.length-d)/70,0,1)):width;
+ road.edgeLineAt=d=>road.widthAt(d)/2-(area==='country'&&width>=8?1:.25);
  road.hasBarrier=d=>highway&&d>95&&d<road.length-95;
  return road;
 }

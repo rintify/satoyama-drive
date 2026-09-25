@@ -1,4 +1,4 @@
-import {crossedStopLine} from './simulation.js';
+import {crossedStopLine} from './simulation.js?v=6';
 const angle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 export const SCORING_RULES=[
  ['右左折の合図なし・逆の合図','25','交差点で35°以上曲がったとき'],
@@ -10,16 +10,18 @@ export const SCORING_RULES=[
  ['黄色の中央線を越える','45','峠道・里山の黄色い線を走行中に横断'],
  ['赤信号で進入','80','赤信号の停止線を越えたとき'],
  ['一時停止をしない','40','「止まれ」の線の手前4m以内で0.8秒停止していない'],
- ['速度超過','20 / 40','制限＋3km/h超が1.5秒。＋20km/h超は40点'],
+ ['速度超過','20 / 40','制限＋3km/h超が1.5秒。＋20km/h超は3点 / ¥18,000'],
  ['車間距離不足','25','15km/h超で、前車との車間が走行0.8秒分未満の状態が1.5秒'],
  ['横断する歩行者を妨げる','60','前方8m以内の横断者に近づきながら2km/h超で走行'],
  ['歩道・路外を走る','30','車道外を3km/h超で0.8秒走行'],
- ['接触事故','70–200','ガードレール70、車・建物・電車100、歩行者200']
+ ['路側帯への進入・路端との間隔不足','20','車体が白線外へ進入、または路端との間隔50cm未満で走行'],
+ ['緊急車両に進路を譲らない','60','接近の告知後、車道内で左へ寄り、交差点を避けて減速する'],
+ ['接触事故','70–200','ガードレール・車・建物・電車への接触。歩行者への接触は6点 / ¥50,000']
 ];
 export class RuleBook{
- constructor(onPenalty){this.time=0;this.cooldowns=new Map();this.history=[];this.onPenalty=onPenalty;this.resetMotion();}
+ constructor(onPenalty,{deductScore=true}={}){this.deductScore=deductScore;this.time=0;this.cooldowns=new Map();this.history=[];this.onPenalty=onPenalty;this.resetMotion();}
  resetMotion(){this.timers={speed:0,lane:0,offroad:0,tail:0,reverse:0,person:0};this.turn=null;this.lane=null;this.center=null;this.signalValue=0;this.signalSince=0;this.signalOrigin=null;this.stopped=new Map();}
- penalize(state,key,amount,message,cooldown=6){if((this.cooldowns.get(key)||0)>this.time)return false;state.score=Math.max(0,state.score-amount);this.cooldowns.set(key,this.time+cooldown);this.history.unshift({time:this.time,amount,message});this.history.length=Math.min(12,this.history.length);this.onPenalty?.(message,amount);return true;}
+ penalize(state,key,amount,message,cooldown=6){if((this.cooldowns.get(key)||0)>this.time)return false;if(this.deductScore)state.score=Math.max(0,state.score-amount);this.cooldowns.set(key,this.time+cooldown);this.history.unshift({time:this.time,amount,message});this.history.length=Math.min(12,this.history.length);this.onPenalty?.(message,amount,key);return true;}
  signalCheck(s,direction,kind,q){const missing=s.signal!==direction;const late=!missing&&(kind==='turn'?Math.hypot((this.signalOrigin?.x??s.x)-q.x,(this.signalOrigin?.z??s.z)-q.z)<30:this.time-this.signalSince<3);if(missing)this.penalize(s,kind+'-signal',kind==='turn'?25:20,(kind==='turn'?'右左折':'車線変更')+'の合図なし・方向違い',3);else if(late)this.penalize(s,kind+'-late',kind==='turn'?15:10,(kind==='turn'?'右左折':'車線変更')+'の合図が遅い',3);}
  tick(dt,s,info,previous,junctions,phase,{cars=[],people=[],stops=[]}={}){
   this.time+=dt;const speed=Math.abs(s.speed)*3.6,road=info.road,heading=-Math.sin(s.yaw)*info.tx-Math.cos(s.yaw)*info.tz,onRoad=info.onSurface??info.distance<road.width/2-.3;
@@ -27,6 +29,10 @@ export class RuleBook{
   const hold=(key,condition,duration,amount,message,cooldown=6)=>{this.timers[key]=condition?(this.timers[key]||0)+dt:0;if(this.timers[key]>=duration){this.penalize(s,key,amount,message,cooldown);this.timers[key]=0;}};
   hold('speed',speed>road.limit+3,1.5,speed>road.limit+20?40:20,'速度超過',4);
   const nearJunction=junctions.some(q=>Math.hypot(q.x-s.x,q.z-s.z)<18),motionHeading=heading*Math.sign(s.speed||1);
+  const width=road.widthAt?.(info.d)||road.width,edgeLine=road.edgeLineAt?.(info.d)??width/2-.25;
+  const bodyWidth=.88*Math.abs(heading)+2.2*Math.sqrt(Math.max(0,1-heading*heading)),outer=Math.abs(info.side)+bodyWidth;
+  hold('shoulder',onRoad&&!nearJunction&&!road.highway&&speed>3&&outer>edgeLine,.55,20,'路側帯へのはみ出し',7);
+  hold('clearance',onRoad&&!nearJunction&&!road.highway&&speed>3&&outer<=edgeLine&&width/2-outer<.5,1.2,20,'路端との間隔50cm未満',7);
   const wrong=!(road.highway&&s.speed<0)&&onRoad&&speed>2&&info.side*motionHeading>.8&&Math.abs(heading)>.7&&!nearJunction&&!(s.gear==='R'&&speed<=5&&!road.highway);
   hold('lane',wrong,road.highway?.5:1,road.highway?80:50,road.highway?'高速道路の逆走':'対向車線の逆走',5);
   hold('reverse',road.highway&&s.speed<-.5,1,40,'高速道路での後退',5);
