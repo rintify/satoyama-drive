@@ -28,3 +28,4 @@ test('traffic stops at the marked approach before continuing through',()=>{
  for(let i=0;i<60*25;i++){stepTraffic([car],1/60,{x:50,z:0,yaw:0,speed:0},roads,[],[],'green',[stop]);if(car.z>13.2&&car.z<16.2&&car.speed<.2)stopped=true;if(car.z<13.2){assert.ok(stopped);assert.ok(car.stopHolds['test-stop']>=.9);crossed=true;break;}}
  assert.ok(crossed);
 });
+test('destroyed traffic is neither simulated, followed, nor reused as rear traffic',()=>{const {roads,player,car}=setup();car.destroyed=true;const before={x:car.x,z:car.z,d:car.d};stepTraffic([car],1/60,player,roads,[],[]);assert.equal(car.x,before.x);assert.equal(car.z,before.z);assert.equal(car.d,before.d);assert.equal(rearTraffic([car],player),null);assert.equal(seedFollowers([car],player,roads),0);});

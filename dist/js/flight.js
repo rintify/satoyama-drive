@@ -1,0 +1,18 @@
+import {clamp} from './simulation.js?v=8';
+export function takeOff(s){s.flight=true;s.landing=false;s.verticalSpeed=0;s.flightTargetY=s.y+12;s.gear='D';s.parking=false;}
+export function requestLanding(s,clear){if(!s.flight||!clear)return false;s.landing=true;return true;}
+export function stepFlight(s,dt,floor,lift=0,canLand=true){dt=clamp(dt,0,1/30);if(!s.flight)return false;if(lift){s.landing=false;s.flightTargetY+=lift*13*dt;}s.flightTargetY=clamp(s.flightTargetY,floor+2,Math.max(180,floor+30));if(s.landing&&!canLand){s.landing=false;s.flightTargetY=Math.max(floor+3,s.y);}
+ const target=s.landing?floor:s.flightTargetY,desired=clamp((target-s.y)*2,-7,9);s.verticalSpeed=(s.verticalSpeed||0)+(desired-(s.verticalSpeed||0))*(1-Math.exp(-3*dt));s.y=Math.max(floor,s.y+s.verticalSpeed*dt);
+ const throttle=s.brake>.08?0:s.throttle,direction=s.gear==='R'?-1:1,targetSpeed=throttle*direction*36;s.speed+=(targetSpeed-s.speed)*(1-Math.exp(-(s.brake>.05?4:.5)*dt));s.roadWheel+=(s.steering/15.9*Math.PI/180-s.roadWheel)*(1-Math.exp(-10*dt));s.yaw-=s.steering/540*.85*(.35+Math.min(1,Math.abs(s.speed)/12))*dt;s.x-=Math.sin(s.yaw)*s.speed*dt;s.z-=Math.cos(s.yaw)*s.speed*dt;s.distance+=Math.abs(s.speed)*dt;s.grade=0;s.rpm+=(1300+throttle*3200-s.rpm)*(1-Math.exp(-4*dt));
+ if(s.landing&&s.y-floor<.09&&Math.abs(s.verticalSpeed)<.5){s.y=floor;s.flight=false;s.landing=false;s.verticalSpeed=0;return true;}return false;
+}
+// Segment/OBB slab test prevents fast projectiles from tunnelling through targets.
+export function segmentHit(from,to,box){if(box.destroyed)return null;const yaw=box.yaw||0,c=Math.cos(yaw),s=Math.sin(yaw);const local=p=>{const dx=p.x-box.x,dz=p.z-box.z;return {x:dx*c-dz*s,z:dx*s+dz*c,y:p.y-(box.y||0)}};const a=local(from),b=local(to),bounds={x:[-(box.hx??.88)-.15,(box.hx??.88)+.15],z:[-(box.hz??2.2)-.15,(box.hz??2.2)+.15],y:[-.15,(box.height??1.7)+.15]};let enter=0,exit=1;for(const axis of ['x','y','z']){const d=b[axis]-a[axis],[min,max]=bounds[axis];if(Math.abs(d)<1e-8){if(a[axis]<min||a[axis]>max)return null;continue;}let t0=(min-a[axis])/d,t1=(max-a[axis])/d;if(t0>t1)[t0,t1]=[t1,t0];enter=Math.max(enter,t0);exit=Math.min(exit,t1);if(enter>exit)return null;}return enter;}
+export function distanceToBox(p,b){const c=Math.cos(b.yaw||0),s=Math.sin(b.yaw||0),dx=p.x-b.x,dz=p.z-b.z;return Math.hypot(Math.max(0,Math.abs(dx*c-dz*s)-(b.hx??.88)),Math.max(0,Math.abs(dx*s+dz*c)-(b.hz??2.2)),Math.max((b.y||0)-p.y,0,p.y-(b.y||0)-(b.height??1.7)));}
+export class MissileSystem{
+ constructor(onExplode=()=>{}){this.items=[];this.cooldown=0;this.shots=0;this.onExplode=onExplode;}
+ fire(origin,direction){if(this.cooldown>0||this.items.length>=6)return null;const length=Math.hypot(direction.x,direction.y,direction.z);if(length<.01)return null;const m={...origin,vx:direction.x/length*90,vy:direction.y/length*90,vz:direction.z/length*90,life:0,id:++this.shots};this.items.push(m);this.cooldown=1.1;return m;}
+ step(dt,targets,groundHeight=()=>0){this.cooldown=Math.max(0,this.cooldown-dt);const alive=[];for(const m of this.items){m.life+=dt;const end={x:m.x+m.vx*dt,y:m.y+m.vy*dt,z:m.z+m.vz*dt};let first=1,target=null;for(const b of targets){const t=segmentHit(m,end,b);if(t!==null&&t<first){first=t;target=b;}}
+ const ground=groundHeight(end.x,end.z);let terrain=false;if(end.y<=ground+.1){const t=m.y>ground+.1?clamp((m.y-ground-.1)/(m.y-end.y),0,1):0;if(t<first){first=t;target=null;terrain=true;}}
+ if(target||terrain){const hit={x:m.x+(end.x-m.x)*first,y:m.y+(end.y-m.y)*first,z:m.z+(end.z-m.z)*first};this.onExplode(hit,target);continue;}Object.assign(m,end);if(m.life<4.5)alive.push(m);}this.items=alive;}
+}

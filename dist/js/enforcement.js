@@ -1,8 +1,9 @@
-import {nearestRoad,sampleRoad} from './road-network.js?v=6';
-import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=6';
+import {nearestRoad,sampleRoad} from './road-network.js?v=8';
+import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=8';
 export const LICENSE_POINTS=20;
 // Fictional game tariffs. These are not Japan's legal demerit points or fines.
 export function sanctionFor({key='',amount=0,message=''}){const text=key+' '+message;
+ if(key==='destruction')return {points:6,fine:50000};
  if(/collision-person|歩行者に接触/.test(text))return {points:6,fine:50000};
  if(/car|building|tram|barrier|接触事故/.test(text))return {points:4,fine:25000};
  if(/emergency|緊急車両/.test(text))return {points:2,fine:12000};
@@ -37,7 +38,7 @@ export class Enforcement{
  }}
  catch(state){if(!this.active)return;const charges=[...this.pending.values()],points=charges.reduce((s,c)=>s+c.points,0),fine=charges.reduce((s,c)=>s+c.fine,0);this.points=Math.max(0,this.points-points);this.fines+=fine;this.history.unshift({charges,points,fine,elapsed:this.elapsed});this.history.length=Math.min(10,this.history.length);this.pending.clear();this.active=false;this.grace=12;
   for(const a of this.officers){const r=nearestRoad(this.roads,a.x,a.z),dir=(-Math.sin(a.yaw)*r.tx-Math.cos(a.yaw)*r.tz)>0?1:-1,p=sampleRoad(r.road,r.d+dir*130);a.path=this.nav.route(a,{...p,yaw:Math.atan2(-p.tx*dir,-p.tz*dir)});a.pathIndex=1;}
-  this.onEvent({type:'caught',points,fine,message:`取り締まり成立：免許 −${points}点 / 反則金 ¥${fine.toLocaleString('ja-JP')}`});
+  this.onEvent({type:'caught',points,fine,charges,message:`取り締まり成立：免許 −${points}点 / 反則金 ¥${fine.toLocaleString('ja-JP')}`});
  }
  get count(){return this.active?this.officers.length:0;}
 }

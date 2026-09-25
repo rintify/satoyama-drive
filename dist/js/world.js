@@ -1,8 +1,8 @@
 import * as T from '../vendor/three.module.js';
-import {createRoadNetwork,nearestRoad,sampleRoad} from './road-network.js?v=6';
-import {createUrbanDistrict} from './urban.js?v=6';
-import {renderRoadNetwork} from './road-renderer.js?v=6';
-export {nearestRoad,sampleRoad} from './road-network.js?v=6';
+import {createRoadNetwork,nearestRoad,sampleRoad} from './road-network.js?v=8';
+import {createUrbanDistrict} from './urban.js?v=8';
+import {renderRoadNetwork} from './road-renderer.js?v=8';
+export {nearestRoad,sampleRoad} from './road-network.js?v=8';
 export const WORLD_SEED = 427;
 let seed = WORLD_SEED;
 const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
@@ -10,10 +10,10 @@ const mat = (color, extra = {}) => new T.MeshStandardMaterial({color,roughness:.
 const boxGeo = new T.BoxGeometry(1,1,1), cylinderGeo = new T.CylinderGeometry(1,1,1,8), sphereGeo = new T.SphereGeometry(1,10,8);
 const tmp = new T.Object3D();
 class Batch {
- constructor(scene){this.scene=scene;this.items=new Map();}
- add(geo,material,x,y,z,sx=1,sy=1,sz=1,ry=0,rx=0,rz=0){const key=geo.uuid+material.uuid+':'+Math.floor(x/100)+','+Math.floor(z/100);if(!this.items.has(key))this.items.set(key,{geo,material,matrices:[]});tmp.position.set(x,y,z);tmp.rotation.set(rx,ry,rz);tmp.scale.set(sx,sy,sz);tmp.updateMatrix();this.items.get(key).matrices.push(tmp.matrix.clone());}
+ constructor(scene){this.scene=scene;this.items=new Map();this.owner=null;}
+ add(geo,material,x,y,z,sx=1,sy=1,sz=1,ry=0,rx=0,rz=0){const key=geo.uuid+material.uuid+':'+Math.floor(x/100)+','+Math.floor(z/100);if(!this.items.has(key))this.items.set(key,{geo,material,matrices:[],owners:[]});tmp.position.set(x,y,z);tmp.rotation.set(rx,ry,rz);tmp.scale.set(sx,sy,sz);tmp.updateMatrix();this.items.get(key).matrices.push(tmp.matrix.clone());this.items.get(key).owners.push(this.owner);}
  box(m,x,y,z,sx,sy,sz,ry=0,rx=0,rz=0){this.add(boxGeo,m,x,y,z,sx,sy,sz,ry,rx,rz);}
- finish(){for(const {geo,material,matrices} of this.items.values()){const mesh=new T.InstancedMesh(geo,material,matrices.length);matrices.forEach((m,i)=>mesh.setMatrixAt(i,m));mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();this.scene.add(mesh);}this.items.clear();}
+ finish(){for(const {geo,material,matrices,owners} of this.items.values()){const mesh=new T.InstancedMesh(geo,material,matrices.length);matrices.forEach((m,i)=>{mesh.setMatrixAt(i,m);if(owners[i]){owners[i].instances??=[];owners[i].instances.push({mesh,index:i});}});mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();this.scene.add(mesh);}this.items.clear();}
 }
 function texture(kind){const c=document.createElement('canvas');c.width=c.height=128;const a=c.getContext('2d');a.fillStyle=kind==='road'?'#787c7a':kind==='roof'?'#adb2b0':'#b2b6a2';a.fillRect(0,0,128,128);for(let i=0;i<4500;i++){const b=80+rand()*145;a.fillStyle=`rgba(${b},${b},${b},${kind==='road'?.12:.06})`;a.fillRect(rand()*128,rand()*128,1+rand()*2,1+rand()*2);}if(kind==='roof'){a.strokeStyle='#535e6355';a.lineWidth=2;for(let i=0;i<128;i+=16){a.beginPath();a.moveTo(i,0);a.lineTo(i,128);a.stroke();a.beginPath();a.moveTo(0,i);a.lineTo(128,i);a.stroke();}}const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;return t;}
 function signTexture(lines,bg='#246247',fg='#f3f6e9',width=512,height=256){const c=document.createElement('canvas');c.width=width;c.height=height;const ctx=c.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);ctx.strokeStyle=fg;ctx.lineWidth=5;ctx.strokeRect(10,10,width-20,height-20);ctx.fillStyle=fg;ctx.textAlign='center';ctx.textBaseline='middle';lines.forEach((s,i)=>{ctx.font=`500 ${lines.length>1?(i===0?46:29):70}px sans-serif`;ctx.fillText(s,width/2,(i+.5)*height/lines.length,width-40)});return new T.CanvasTexture(c);}
@@ -57,10 +57,11 @@ export function createWorld(scene,assets){
   const cos=Math.cos(yaw),sin=Math.sin(yaw);
   const B=(m,px,py,pz,sx,sy,sz,ry=0,rx=0,rz=0)=>batch.box(m,x+px*cos+pz*sin,py,z-px*sin+pz*cos,sx,sy,sz,yaw+ry,rx,rz);
   const A=(geo,m,px,py,pz,sx,sy,sz,ry=0)=>batch.add(geo,m,x+px*cos+pz*sin,py,z-px*sin+pz*cos,sx,sy,sz,yaw+ry);
+  const hx=Math.abs(cos)*w/2+Math.abs(sin)*d/2,hz=Math.abs(sin)*w/2+Math.abs(cos)*d/2;const collider={x,z,hx,hz,height:h+2.6,y:0,type:'building',objects:[]};colliders.push(collider);batch.owner=collider;
   B(materials.concrete,0,.24,0,w+.3,.46,d+.3);B(wall,0,h/2+.4,0,w,h,d);
   if(isModern){B(materials.dark,0,h+.4,0,w+.45,.2,d+.45);B(materials.walls[3],-w*.28,h*.65,0,w*.42,h*.73,d+.07);B(materials.concrete,0,h+.1,0,w+.5,.11,d+.5);}
   else{A(roofGeo,roof,0,h+.4,0,w*.56,2.5,d*.57);B(roof,0,h+2.45,0,.23,.22,d*1.15);for(const side of [-1,1])B(materials.dark,side*w*.56,h+.37,0,.13,.13,d*1.15);}
-  const hx=Math.abs(cos)*w/2+Math.abs(sin)*d/2,hz=Math.abs(sin)*w/2+Math.abs(cos)*d/2;colliders.push({x,z,hx,hz,type:'building'});
+
   // Glazed sliding windows with recessed frames, curtains, sills and shutters.
   for(const side of [-1,1])for(const y of [2.0,4.75])for(const dx of [-w*.28,w*.27]){
    const ww=isModern?2.2:1.82,wh=y>3?1.42:1.7;
@@ -79,7 +80,7 @@ export function createWorld(scene,assets){
   B(materials.dark,-1.4,2.23,d/2+.13,.13,.32,.13);B(materials.white,-1.4,2.23,d/2+.2,.09,.22,.07);
   B(materials.wood,-w*.34,.73,d/2+1.1,.58,.38,.36);B(materials.metal,-w*.34,.32,d/2+1.1,.065,.58,.065);
   if(isShop){const fz=d/2+.8;sign(x+fz*sin,3.45,z+fz*cos,[[ 'さくらベーカリー','山田商店','里山珈琲'][Math.floor(index/11)%3]],'#344b4c',w*.75,.52,yaw);B(materials.dark,0,1.76,d/2+.11,w*.7,2.45,.07);B(materials.glass,0,1.76,d/2+.16,w*.64,2.2,.04);B(materials.roofs[1],0,3.14,d/2+.7,w*.89,.16,1.55);}
-  const frontX=x+(d/2+2.2)*sin,frontZ=z+(d/2+2.2)*cos;tree(frontX-w*.42*cos,frontZ+w*.42*sin,.48);
+  const frontX=x+(d/2+2.2)*sin,frontZ=z+(d/2+2.2)*cos;tree(frontX-w*.42*cos,frontZ+w*.42*sin,.48);batch.owner=null;
  }
 
  let houseIndex=0;
@@ -92,9 +93,9 @@ export function createWorld(scene,assets){
  for(let z=-115;z<140;z+=28){for(const x of [-5.55,5.55]){batch.box(materials.dark,x,.227,z,.48,.015,.75);for(let k=-2;k<=2;k++)batch.box(materials.metal,x+k*.085,.241,z,.028,.01,.66);}batch.box(materials.concrete,-7,.23,z,1.6,.02,.07);batch.box(materials.concrete,7,.23,z,1.6,.02,.07);}
  for(let z=-125;z<135;z+=28){for(const side of [-1,1]){const x=side*10.2;for(let q=-4;q<=4;q++)batch.box(materials.wood,x,1.02,z+q*.35,.08,1.65,.08);batch.box(materials.wood,x,1.45,z,.09,.075,3.1);batch.box(materials.wood,x,.56,z,.09,.075,3.1);}}
  // Local convenience store, covered tram stops, utility poles and wires.
- const storeMat=mat('#ecede3'),storeGreen=mat('#338c70');batch.box(storeMat,26,2.5,-129,20,5,13);colliders.push({x:26,z:-129,hx:10,hz:6.5,type:'building'});batch.box(materials.glass,26,2.2,-122.4,18,3.6,.1);batch.box(storeGreen,26,4.7,-122.3,21,.55,.3);batch.box(materials.white,26,4.22,-122.3,21,.18,.3);
- function sign(x,y,z,lines,bg,w=6,h=3,ry=0){const tex=signTexture(lines,bg);tex.colorSpace=T.SRGBColorSpace;const m=new T.MeshBasicMaterial({map:tex,side:T.DoubleSide});const mesh=new T.Mesh(new T.PlaneGeometry(w,h),m);mesh.position.set(x,y,z);mesh.rotation.y=ry;scene.add(mesh);return mesh;}
- sign(26,4.65,-122.05,['さくら MART'],'#2c8269',8,.7);
+ const storeMat=mat('#ecede3'),storeGreen=mat('#338c70');const storeCollider={x:26,z:-129,hx:10,hz:6.5,y:0,height:5,type:'building',objects:[]};colliders.push(storeCollider);batch.owner=storeCollider;batch.box(storeMat,26,2.5,-129,20,5,13);batch.box(materials.glass,26,2.2,-122.4,18,3.6,.1);batch.box(storeGreen,26,4.7,-122.3,21,.55,.3);batch.box(materials.white,26,4.22,-122.3,21,.18,.3);
+ function sign(x,y,z,lines,bg,w=6,h=3,ry=0){const tex=signTexture(lines,bg);tex.colorSpace=T.SRGBColorSpace;const m=new T.MeshBasicMaterial({map:tex,side:T.DoubleSide});const mesh=new T.Mesh(new T.PlaneGeometry(w,h),m);mesh.position.set(x,y,z);mesh.rotation.y=ry;scene.add(mesh);if(batch.owner)batch.owner.objects.push(mesh);return mesh;}
+ sign(26,4.65,-122.05,['さくら MART'],'#2c8269',8,.7);batch.owner=null;
  const vending=mat('#b63d3a');batch.box(vending,11.3,1.03,-120,1.3,2,.85);batch.box(materials.white,11.3,1.2,-119.56,1,.9,.02);for(let i=0;i<4;i++)for(let j=0;j<2;j++)batch.box([storeGreen,materials.yellow,vending,materials.glass][i],10.94+i*.24,1.03+j*.35,-119.51,.14,.24,.02);
  for(const x of [60,210]){batch.box(materials.concrete,x,.22,143,13,.4,3);batch.box(materials.dark,x,3.1,143,14,.18,3.4);for(const dx of [-5.7,5.7])batch.box(materials.metal,x+dx,1.6,143,.1,3.1,.1);batch.box(materials.wood,x,.7,143,5,.2,.5);sign(x,2.2,144,['桜町電停'],'#36544b',3,.5);}
  const cablePoints=[];

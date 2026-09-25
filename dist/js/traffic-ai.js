@@ -1,5 +1,5 @@
-import {sampleRoad,nearestRoad} from './road-network.js?v=6';
-import {clamp} from './simulation.js?v=6';
+import {sampleRoad,nearestRoad} from './road-network.js?v=8';
+import {clamp} from './simulation.js?v=8';
 const wrap=(d,length)=>((d%length)+length)%length;
 const smooth=t=>t*t*(3-2*t);
 export function createAgent(route,d,dir=1,cruise=14){return {route,d,dir,cruise,speed:0,lane:0,targetLane:0,laneFrom:0,laneTime:3,passTime:0,signal:0,x:0,y:0,z:0,yaw:0,braking:false};}
@@ -45,17 +45,17 @@ export function planAgent(c,obstacles,people,junctions,phase,dt,stops=[]){
  return {acceleration:clamp(acceleration,-8,1.6),gap,leaderSpeed:leader?.speed};
 }
 export function stepTraffic(cars,dt,player,roads,junctions,people=[],phase='green',stops=[]){
- const obstacles=[player,...cars];const plans=cars.map(c=>planAgent(c,obstacles,people,junctions,phase,dt,stops));
+ cars=cars.filter(c=>!c.destroyed);const obstacles=[player,...cars];const plans=cars.map(c=>planAgent(c,obstacles,people,junctions,phase,dt,stops));
  cars.forEach((c,i)=>{const plan=plans[i];c.speed=Math.max(0,c.speed+plan.acceleration*dt);let distance=c.speed*dt;if(Number.isFinite(plan.gap))distance=Math.min(distance,Math.max(0,plan.gap-5.6));if(distance===0&&plan.gap<5.7)c.speed=0;c.braking=plan.acceleration<-.7;c.d=wrap(c.d+c.dir*distance,c.route.length);const oldX=c.x,oldZ=c.z,oldYaw=c.yaw;positionAgent(c,roads);if(dt>0&&Math.hypot(c.x-oldX,c.z-oldZ)>.00001){const desired=Math.atan2(-(c.x-oldX),-(c.z-oldZ));const difference=Math.atan2(Math.sin(desired-oldYaw),Math.cos(desired-oldYaw));c.yaw=oldYaw+clamp(difference,-1.3*dt,1.3*dt);}c.steer=Math.atan2(Math.sin(c.yaw-oldYaw),Math.cos(c.yaw-oldYaw))*-2.65/Math.max(.3,c.speed*dt);});
 }
 export function closestTrafficRoute(cars,state){
- let best=null;for(const route of new Set(cars.map(c=>c.homeRoute||c.route))){const q=nearestRoad([route],state.x,state.z);if(!best||q.distance<best.q.distance)best={route,q};}return best;
+ let best=null;for(const route of new Set(cars.filter(c=>!c.destroyed).map(c=>c.homeRoute||c.route))){const q=nearestRoad([route],state.x,state.z);if(!best||q.distance<best.q.distance)best={route,q};}return best;
 }
-export function rearTraffic(cars,state){const fx=-Math.sin(state.yaw),fz=-Math.cos(state.yaw);return cars.map(c=>{const dx=c.x-state.x,dz=c.z-state.z;return {car:c,behind:-(dx*fx+dz*fz),side:Math.abs(dx*-fz+dz*fx)};}).filter(v=>v.behind>3&&v.behind<150&&v.side<7&&Math.cos(v.car.yaw-state.yaw)>.5&&Math.abs(v.car.y-(state.y||0))<4).sort((a,b)=>a.behind-b.behind)[0]||null;}
+export function rearTraffic(cars,state){const fx=-Math.sin(state.yaw),fz=-Math.cos(state.yaw);return cars.filter(c=>!c.destroyed).map(c=>{const dx=c.x-state.x,dz=c.z-state.z;return {car:c,behind:-(dx*fx+dz*fz),side:Math.abs(dx*-fz+dz*fx)};}).filter(v=>v.behind>3&&v.behind<150&&v.side<7&&Math.cos(v.car.yaw-state.yaw)>.5&&Math.abs(v.car.y-(state.y||0))<4).sort((a,b)=>a.behind-b.behind)[0]||null;}
 export function seedFollowers(cars,state,roads,{distant=false}={}){
  const match=closestTrafficRoute(cars,state);if(!match||match.q.distance>10)return 0;const {route,q}=match,p=sampleRoad(route,q.d),dir=(-Math.sin(state.yaw)*p.tx-Math.cos(state.yaw)*p.tz)>0?1:-1;
- const pool=cars.filter(c=>!distant||Math.hypot(c.x-state.x,c.z-state.z)>280).sort((a,b)=>Math.hypot(b.x-state.x,b.z-state.z)-Math.hypot(a.x-state.x,a.z-state.z));
+ const pool=cars.filter(c=>!c.destroyed&&(!distant||Math.hypot(c.x-state.x,c.z-state.z)>280)).sort((a,b)=>Math.hypot(b.x-state.x,b.z-state.z)-Math.hypot(a.x-state.x,a.z-state.z));
  let placed=0;for(const gap of distant?[180,230]:[18,43,80]){const c=pool.shift();if(!c)break;const old={...c};c.homeRoute??=c.route;c.route=route;c.dir=dir;c.d=wrap(q.d-dir*gap,route.length);c.lane=c.targetLane=c.laneFrom=0;c.laneTime=3;c.passTime=0;c.signal=0;c.speed=distant?Math.max(7,Math.abs(state.speed)):0;c.cruise=23+placed;positionAgent(c,roads);
- if(cars.some(o=>o!==c&&Math.abs((o.x-c.x)*c.fx+(o.z-c.z)*c.fz)<9&&Math.abs((o.x-c.x)*-c.fz+(o.z-c.z)*c.fx)<2.3&&Math.abs(o.y-c.y)<3)){Object.assign(c,old);continue;}placed++;}
+ if(cars.some(o=>!o.destroyed&&o!==c&&Math.abs((o.x-c.x)*c.fx+(o.z-c.z)*c.fz)<9&&Math.abs((o.x-c.x)*-c.fz+(o.z-c.z)*c.fx)<2.3&&Math.abs(o.y-c.y)<3)){Object.assign(c,old);continue;}placed++;}
  return placed;
 }
