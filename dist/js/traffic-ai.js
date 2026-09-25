@@ -1,5 +1,5 @@
-import {sampleRoad,nearestRoad} from './road-network.js?v=8';
-import {clamp} from './simulation.js?v=8';
+import {sampleRoad,nearestRoad} from './road-network.js?v=9';
+import {clamp} from './simulation.js?v=9';
 const wrap=(d,length)=>((d%length)+length)%length;
 const smooth=t=>t*t*(3-2*t);
 export function createAgent(route,d,dir=1,cruise=14){return {route,d,dir,cruise,speed:0,lane:0,targetLane:0,laneFrom:0,laneTime:3,passTime:0,signal:0,x:0,y:0,z:0,yaw:0,braking:false};}

@@ -1,5 +1,5 @@
 import * as T from '../vendor/three.module.js';
-import {sampleRoad,nearestRoad} from './road-network.js?v=8';
+import {sampleRoad,nearestRoad} from './road-network.js?v=9';
 
 // Surface and paint share the same sampled, height-aware ribbon. UVs are world
 // aligned, so intersecting asphalt meshes cannot produce rotated texture seams.

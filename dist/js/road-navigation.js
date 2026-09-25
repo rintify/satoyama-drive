@@ -1,4 +1,4 @@
-import {nearestRoad,sampleRoad} from './road-network.js?v=8';
+import {nearestRoad,sampleRoad} from './road-network.js?v=9';
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 // A directed lane graph: the motorway median cannot be crossed to take a shortcut.
 export function createRoadNavigator(roads){

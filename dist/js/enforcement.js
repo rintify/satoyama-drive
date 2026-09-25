@@ -1,5 +1,5 @@
-import {nearestRoad,sampleRoad} from './road-network.js?v=8';
-import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=8';
+import {nearestRoad,sampleRoad} from './road-network.js?v=9';
+import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=9';
 export const LICENSE_POINTS=20;
 // Fictional game tariffs. These are not Japan's legal demerit points or fines.
 export function sanctionFor({key='',amount=0,message=''}){const text=key+' '+message;
