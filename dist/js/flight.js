@@ -1,4 +1,4 @@
-import {clamp} from './simulation.js?v=12';
+import {clamp} from './simulation.js?v=13';
 const G=9.81;
 // Accessible fixed-wing game model: aerodynamic lift, drag and coordinated turns.
 // Speeds are m/s; pitch is nose-up, bank is right-wing-down, all angles in radians.
@@ -34,14 +34,18 @@ export function stepFlight(s,dt,floor,input={},canLand=true){
 export function segmentHit(from,to,box){if(box.destroyed)return null;const yaw=box.yaw||0,c=Math.cos(yaw),s=Math.sin(yaw);const local=p=>{const dx=p.x-box.x,dz=p.z-box.z;return {x:dx*c-dz*s,z:dx*s+dz*c,y:p.y-(box.y||0)}};const a=local(from),b=local(to),bounds={x:[-(box.hx??.88)-.15,(box.hx??.88)+.15],z:[-(box.hz??2.2)-.15,(box.hz??2.2)+.15],y:[-.15,(box.height??1.7)+.15]};let enter=0,exit=1;for(const axis of ['x','y','z']){const d=b[axis]-a[axis],[min,max]=bounds[axis];if(Math.abs(d)<1e-8){if(a[axis]<min||a[axis]>max)return null;continue;}let t0=(min-a[axis])/d,t1=(max-a[axis])/d;if(t0>t1)[t0,t1]=[t1,t0];enter=Math.max(enter,t0);exit=Math.min(exit,t1);if(enter>exit)return null;}return enter;}
 export function distanceToBox(p,b){const c=Math.cos(b.yaw||0),s=Math.sin(b.yaw||0),dx=p.x-b.x,dz=p.z-b.z;return Math.hypot(Math.max(0,Math.abs(dx*c-dz*s)-(b.hx??.88)),Math.max(0,Math.abs(dx*s+dz*c)-(b.hz??2.2)),Math.max((b.y||0)-p.y,0,p.y-(b.y||0)-(b.height??1.7)));}
 export class MissileSystem{
- constructor(onExplode=()=>{}){this.items=[];this.cooldown=0;this.shots=0;this.onExplode=onExplode;}
- fire(origin,direction){if(this.cooldown>0||this.items.length>=6)return null;const length=Math.hypot(direction.x,direction.y,direction.z);if(length<.01)return null;const m={...origin,vx:direction.x/length*90,vy:direction.y/length*90,vz:direction.z/length*90,life:0,id:++this.shots};this.items.push(m);this.cooldown=1.1;return m;}
- step(dt,targets,groundHeight=()=>0){this.cooldown=Math.max(0,this.cooldown-dt);const alive=[];for(const m of this.items){m.life+=dt;const end={x:m.x+m.vx*dt,y:m.y+m.vy*dt,z:m.z+m.vz*dt};let first=1,target=null;for(const b of (typeof targets==='function'?targets(m,end):targets)){const t=segmentHit(m,end,b);if(t!==null&&t<first){first=t;target=b;}}
+ constructor(onExplode=()=>{}){this.items=[];this.cooldown=0;this.reloadDuration=1.1;this.shots=0;this.onExplode=onExplode;}
+ fire(origin,direction,options={}){if(this.cooldown>0||this.items.length>=6)return null;const length=Math.hypot(direction.x,direction.y,direction.z);if(length<.01)return null;const m={...origin,vx:direction.x/length*90,vy:direction.y/length*90,vz:direction.z/length*90,life:0,kind:options.kind==='nuclear'?'nuclear':'normal',target:options.target||null,id:++this.shots};this.items.push(m);this.reloadDuration=m.kind==='nuclear'?12:1.1;this.cooldown=this.reloadDuration;return m;}
+ step(dt,targets,groundHeight=()=>0){this.cooldown=Math.max(0,this.cooldown-dt);const alive=[];for(const m of this.items){m.life+=dt;guideMissile(m,dt);const end={x:m.x+m.vx*dt,y:m.y+m.vy*dt,z:m.z+m.vz*dt};let first=1,target=null;for(const b of (typeof targets==='function'?targets(m,end):targets)){const t=segmentHit(m,end,b);if(t!==null&&t<first){first=t;target=b;}}
  const ground=groundHeight(end.x,end.z);let terrain=false;if(end.y<=ground+.1){const t=m.y>ground+.1?clamp((m.y-ground-.1)/(m.y-end.y),0,1):0;if(t<first){first=t;target=null;terrain=true;}}
- if(target||terrain){const hit={x:m.x+(end.x-m.x)*first,y:m.y+(end.y-m.y)*first,z:m.z+(end.z-m.z)*first};this.onExplode(hit,target);continue;}Object.assign(m,end);if(m.life<4.5)alive.push(m);}this.items=alive;}
+ if(target||terrain){const hit={x:m.x+(end.x-m.x)*first,y:m.y+(end.y-m.y)*first,z:m.z+(end.z-m.z)*first};this.onExplode(hit,target,m);continue;}Object.assign(m,end);if(m.life<4.5)alive.push(m);else if(m.kind==='nuclear')this.onExplode(end,null,m);}this.items=alive;}
 }
 
 // Forward axis stays fixed to the car, independent of camera look direction.
 export function vehicleLaunchPose(s){const pitch=s.flight?s.flightPitch||0:s.launchPitch||0,bank=s.flight?-(s.flightBank||0):0,c=Math.cos(s.yaw),n=Math.sin(s.yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),cb=Math.cos(bank),sb=Math.sin(bank),lx=-.95*sb,ly=.95*cb,up=ly*cp+2.8*sp,lz=ly*sp-2.8*cp;return {origin:{x:s.x+lx*c+lz*n,y:s.y+up,z:s.z-lx*n+lz*c},direction:{x:-n*cp,y:sp,z:-c*cp}};}
 
 export function footLaunchPose(s){const yaw=s.yaw,pitch=s.aimPitch||0,cp=Math.cos(pitch),sp=Math.sin(pitch),direction={x:-Math.sin(yaw)*cp,y:sp,z:-Math.cos(yaw)*cp};return {origin:{x:s.x+Math.cos(yaw)*.3+direction.x*.8,y:s.y+1.38+direction.y*.8,z:s.z-Math.sin(yaw)*.3+direction.z*.8},direction};}
+
+// Mild game-only guidance: acquire once inside a 25° cone, never turn around.
+export function selectFighter(origin,direction,fighters){let best=null,score=Infinity;for(const f of fighters){if(f.destroyed)continue;const dx=f.x-origin.x,dy=f.y+1-origin.y,dz=f.z-origin.z,d=Math.hypot(dx,dy,dz);if(d<5||d>420)continue;const dot=(dx*direction.x+dy*direction.y+dz*direction.z)/d;if(dot<Math.cos(25*Math.PI/180))continue;const cost=(1-dot)*500+d*.15;if(cost<score){best=f;score=cost;}}return best;}
+export function guideMissile(m,dt){const t=m.target;if(!t||t.destroyed){m.target=null;return;}const speed=Math.hypot(m.vx,m.vy,m.vz),dx=t.x-m.x,dy=t.y+1-m.y,dz=t.z-m.z,d=Math.hypot(dx,dy,dz);if(d<.001)return;const a=[m.vx/speed,m.vy/speed,m.vz/speed],b=[dx/d,dy/d,dz/d],dot=Math.max(-1,Math.min(1,a.reduce((v,x,i)=>v+x*b[i],0)));if(dot<.25){m.target=null;return;}const angle=Math.acos(dot),turn=Math.min(angle,.38*dt);if(angle<1e-6)return;const k=turn/angle,sin=Math.sin(angle),u=Math.sin((1-k)*angle)/sin,v=Math.sin(k*angle)/sin;m.vx=(a[0]*u+b[0]*v)*speed;m.vy=(a[1]*u+b[1]*v)*speed;m.vz=(a[2]*u+b[2]*v)*speed;}

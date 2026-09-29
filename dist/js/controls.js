@@ -1,4 +1,4 @@
-import {clamp} from './simulation.js?v=12';
+import {clamp} from './simulation.js?v=13';
 export function createControls(state,actions){
  const wheel=document.querySelector('#wheel'),art=document.querySelector('#wheel-art');const keys=new Set();let stickPointer=null,stickX=0,stickY=0;let wheelPointer=null,lastAngle=0,lookPointer=null,lastX=0,lastY=0;let walkPointer=null,walkX=0,walkY=0,runHeld=false;const heldPedals=new Map(),heldLift=new Map();const input={moveX:0,moveY:0,run:false,aileron:0,elevator:0,rudder:0,lift:0,look:0,pitch:0,lookTarget:0,pitchTarget:0};
  const angle=e=>{const r=wheel.getBoundingClientRect();return Math.atan2(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2)*180/Math.PI;};

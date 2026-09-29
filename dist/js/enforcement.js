@@ -1,7 +1,7 @@
-import {captureSpeedAllowed} from './police-encounter.js?v=12';
-import {walkToward} from './locomotion.js?v=12';
-import {nearestRoad,sampleRoad} from './road-network.js?v=12';
-import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=12';
+import {captureSpeedAllowed} from './police-encounter.js?v=13';
+import {walkToward} from './locomotion.js?v=13';
+import {nearestRoad,sampleRoad} from './road-network.js?v=13';
+import {createRoadNavigator,followRoadPath,roadSegmentClear} from './road-navigation.js?v=13';
 export const LICENSE_POINTS=20;
 // Fictional game tariffs. These are not Japan's legal demerit points or fines.
 export function sanctionFor({key='',amount=0,message=''}){const text=key+' '+message;
