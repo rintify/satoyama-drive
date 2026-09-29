@@ -1,5 +1,5 @@
-import {sampleRoad,nearestRoad} from './road-network.js?v=13';
-import {createAgent,positionAgent,closestTrafficRoute} from './traffic-ai.js?v=13';
+import {sampleRoad,nearestRoad} from './road-network.js?v=14';
+import {createAgent,positionAgent,closestTrafficRoute} from './traffic-ai.js?v=14';
 export function emergencyApproach(ambulance,player){if(!ambulance||ambulance.destroyed)return null;const fx=ambulance.fx??-Math.sin(ambulance.yaw),fz=ambulance.fz??-Math.cos(ambulance.yaw),dx=player.x-ambulance.x,dz=player.z-ambulance.z,along=dx*fx+dz*fz,side=Math.abs(dx*-fz+dz*fx);if(along< -7||along>100||side>9||Math.cos(ambulance.yaw-player.yaw)<.55||Math.abs(ambulance.y-player.y)>3)return null;return {distance:along,side};}
 export function hasYielded(ambulance,player,junctions=[]){const r=emergencyApproach(ambulance,player);if(!r)return true;const fx=-Math.sin(ambulance.yaw),fz=-Math.cos(ambulance.yaw),dx=player.x-ambulance.x,dz=player.z-ambulance.z,left=dx*fz-dz*fx;return left>2.17&&Math.abs(player.speed)<10/3.6&&!junctions.some(q=>Math.hypot(player.x-q.x,player.z-q.z)<12);}
 export class EmergencyTraffic{

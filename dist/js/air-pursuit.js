@@ -1,4 +1,4 @@
-import {segmentHit,distanceToBox} from './flight.js?v=13';
+import {segmentHit,distanceToBox} from './flight.js?v=14';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),angle=v=>Math.atan2(Math.sin(v),Math.cos(v));
 export class AirPursuit{
  constructor(onEvent=()=>{}){this.onEvent=onEvent;this.fighters=[];this.missiles=[];this.active=false;this.wave=0;this.wait=null;this.sequence=0;this.clock=0;this.serial=0;}

@@ -1,4 +1,4 @@
-import {crossedStopLine} from './simulation.js?v=13';
+import {crossedStopLine} from './simulation.js?v=14';
 const angle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 export const SCORING_RULES=[
  ['右左折の合図なし・逆の合図','25','交差点で35°以上曲がったとき'],

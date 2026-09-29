@@ -1,4 +1,4 @@
-import {segmentHit} from './flight.js?v=13';
+import {segmentHit} from './flight.js?v=14';
 // Fictional arcade combat: finite projectiles, warning delay and solid cover.
 export class PoliceCombat{
  constructor(onEvent=()=>{}){this.onEvent=onEvent;this.bullets=[];this.shots=0;this.warning=0;this.wasArmed=false;}

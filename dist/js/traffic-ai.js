@@ -1,5 +1,5 @@
-import {sampleRoad,nearestRoad} from './road-network.js?v=13';
-import {clamp} from './simulation.js?v=13';
+import {sampleRoad,nearestRoad} from './road-network.js?v=14';
+import {clamp} from './simulation.js?v=14';
 const wrap=(d,length)=>((d%length)+length)%length;
 const smooth=t=>t*t*(3-2*t);
 const laneWidth=r=>r.highway?3.7:r.width/(r.oneWay?r.lanes:2*r.lanes);

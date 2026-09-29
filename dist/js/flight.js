@@ -1,4 +1,4 @@
-import {clamp} from './simulation.js?v=13';
+import {clamp} from './simulation.js?v=14';
 const G=9.81;
 // Accessible fixed-wing game model: aerodynamic lift, drag and coordinated turns.
 // Speeds are m/s; pitch is nose-up, bank is right-wing-down, all angles in radians.
@@ -8,6 +8,7 @@ export function stepFlight(s,dt,floor,input={},canLand=true){
  dt=clamp(dt,0,1/30);if(!s.flight||dt===0)return false;
  if(s.shotDown){s.landing=false;s.throttle=s.flightThrottle=0;s.speed*=Math.exp(-dt*.15);s.verticalSpeed-=G*dt;s.flightPitch+=(-.5-s.flightPitch)*dt;s.flightBank+=.7*dt;s.yaw+=.12*dt;s.x-=Math.sin(s.yaw)*s.speed*dt;s.z-=Math.cos(s.yaw)*s.speed*dt;s.y+=s.verticalSpeed*dt;if(s.y<=floor){s.y=floor;s.flightImpact=Math.abs(s.verticalSpeed);s.speed=s.verticalSpeed=0;s.flight=s.airborne=false;return true;}return false;}
  if(typeof input==='number')input={elevator:input};
+ if(s.airborne&&Math.hypot(s.speed,s.verticalSpeed)>55)return stepJet(s,dt,floor,input,canLand);
  let elevator=clamp(input.elevator||0,-1,1),aileron=clamp(input.aileron||0,-1,1),rudder=clamp(input.rudder||0,-1,1);
  const altitude=Math.max(0,s.y-floor),v=Math.hypot(s.speed,s.verticalSpeed),gamma=Math.atan2(s.verticalSpeed,Math.max(1,s.speed)),authority=clamp(v/22,.12,1);
  let throttle=clamp(s.flightThrottle??s.throttle,0,1);
@@ -18,7 +19,7 @@ export function stepFlight(s,dt,floor,input={},canLand=true){
  s.flightBank=clamp(s.flightBank+(s.rollRate-s.flightBank*.15)*dt,-1.1,1.1);
  if(!s.airborne){s.flightBank=0;s.flightPitch=clamp(s.flightPitch,-.03,.28);}
  const aoa=s.flightPitch-gamma,stallLoss=clamp((Math.abs(aoa)-.28)/.33,0,.82),cl=clamp(.65+aoa*6,-.9,2.2)*(1-stallLoss);
- const lift=G*(v/26)**2*cl,drag=.65+.0018*v*v+.026*lift*lift+Math.max(0,s.brake)*8,thrust=throttle*11;
+ const lift=G*(v/26)**2*cl,drag=.65+.0018*v*v+.026*lift*lift+Math.max(0,s.brake)*8,thrust=throttle*11+Math.max(0,(throttle-.82)/.18)*110;
  s.stall=s.airborne&&(v<15||Math.abs(aoa)>.34);if(s.stall)s.flightPitch-=clamp((15-v)*.012+stallLoss*.32,.04,.55)*dt;
  const ay=lift*Math.cos(s.flightBank)*Math.cos(gamma)+thrust*Math.sin(s.flightPitch)-drag*Math.sin(gamma)-G;
  s.speed=clamp(s.speed+(thrust*Math.cos(s.flightPitch)-drag*Math.cos(gamma)-lift*Math.sin(gamma))*dt,0,95);
@@ -35,17 +36,20 @@ export function segmentHit(from,to,box){if(box.destroyed)return null;const yaw=b
 export function distanceToBox(p,b){const c=Math.cos(b.yaw||0),s=Math.sin(b.yaw||0),dx=p.x-b.x,dz=p.z-b.z;return Math.hypot(Math.max(0,Math.abs(dx*c-dz*s)-(b.hx??.88)),Math.max(0,Math.abs(dx*s+dz*c)-(b.hz??2.2)),Math.max((b.y||0)-p.y,0,p.y-(b.y||0)-(b.height??1.7)));}
 export class MissileSystem{
  constructor(onExplode=()=>{}){this.items=[];this.cooldown=0;this.reloadDuration=1.1;this.shots=0;this.onExplode=onExplode;}
- fire(origin,direction,options={}){if(this.cooldown>0||this.items.length>=6)return null;const length=Math.hypot(direction.x,direction.y,direction.z);if(length<.01)return null;const m={...origin,vx:direction.x/length*90,vy:direction.y/length*90,vz:direction.z/length*90,life:0,kind:options.kind==='nuclear'?'nuclear':'normal',target:options.target||null,id:++this.shots};this.items.push(m);this.reloadDuration=m.kind==='nuclear'?12:1.1;this.cooldown=this.reloadDuration;return m;}
+ fire(origin,direction,options={}){if(this.cooldown>0||this.items.length>=6)return null;const length=Math.hypot(direction.x,direction.y,direction.z);if(length<.01)return null;const projectileSpeed=clamp(options.speed||90,90,600),m={...origin,vx:direction.x/length*projectileSpeed,vy:direction.y/length*projectileSpeed,vz:direction.z/length*projectileSpeed,life:0,kind:options.kind==='nuclear'?'nuclear':'normal',target:options.target||null,id:++this.shots};this.items.push(m);this.reloadDuration=m.kind==='nuclear'?12:1.1;this.cooldown=this.reloadDuration;return m;}
  step(dt,targets,groundHeight=()=>0){this.cooldown=Math.max(0,this.cooldown-dt);const alive=[];for(const m of this.items){m.life+=dt;guideMissile(m,dt);const end={x:m.x+m.vx*dt,y:m.y+m.vy*dt,z:m.z+m.vz*dt};let first=1,target=null;for(const b of (typeof targets==='function'?targets(m,end):targets)){const t=segmentHit(m,end,b);if(t!==null&&t<first){first=t;target=b;}}
  const ground=groundHeight(end.x,end.z);let terrain=false;if(end.y<=ground+.1){const t=m.y>ground+.1?clamp((m.y-ground-.1)/(m.y-end.y),0,1):0;if(t<first){first=t;target=null;terrain=true;}}
  if(target||terrain){const hit={x:m.x+(end.x-m.x)*first,y:m.y+(end.y-m.y)*first,z:m.z+(end.z-m.z)*first};this.onExplode(hit,target,m);continue;}Object.assign(m,end);if(m.life<4.5)alive.push(m);else if(m.kind==='nuclear')this.onExplode(end,null,m);}this.items=alive;}
 }
 
 // Forward axis stays fixed to the car, independent of camera look direction.
-export function vehicleLaunchPose(s){const pitch=s.flight?s.flightPitch||0:s.launchPitch||0,bank=s.flight?-(s.flightBank||0):0,c=Math.cos(s.yaw),n=Math.sin(s.yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),cb=Math.cos(bank),sb=Math.sin(bank),lx=-.95*sb,ly=.95*cb,up=ly*cp+2.8*sp,lz=ly*sp-2.8*cp;return {origin:{x:s.x+lx*c+lz*n,y:s.y+up,z:s.z-lx*n+lz*c},direction:{x:-n*cp,y:sp,z:-c*cp}};}
+export function vehicleLaunchPose(s){const pitch=s.flight?s.flightPitch||0:s.launchPitch||0,bank=s.flight?-(s.flightBank||0):0,c=Math.cos(s.yaw),n=Math.sin(s.yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),cb=Math.cos(bank),sb=Math.sin(bank),lx=-.95*sb,ly=.95*cb,up=ly*cp+2.8*sp,lz=ly*sp-2.8*cp;return {origin:{x:s.x+lx*c+lz*n,y:s.y+up+(s.robot?.4:0),z:s.z-lx*n+lz*c},direction:{x:-n*cp,y:sp,z:-c*cp}};}
 
 export function footLaunchPose(s){const yaw=s.yaw,pitch=s.aimPitch||0,cp=Math.cos(pitch),sp=Math.sin(pitch),direction={x:-Math.sin(yaw)*cp,y:sp,z:-Math.cos(yaw)*cp};return {origin:{x:s.x+Math.cos(yaw)*.3+direction.x*.8,y:s.y+1.38+direction.y*.8,z:s.z-Math.sin(yaw)*.3+direction.z*.8},direction};}
 
 // Mild game-only guidance: acquire once inside a 25° cone, never turn around.
 export function selectFighter(origin,direction,fighters){let best=null,score=Infinity;for(const f of fighters){if(f.destroyed)continue;const dx=f.x-origin.x,dy=f.y+1-origin.y,dz=f.z-origin.z,d=Math.hypot(dx,dy,dz);if(d<5||d>420)continue;const dot=(dx*direction.x+dy*direction.y+dz*direction.z)/d;if(dot<Math.cos(25*Math.PI/180))continue;const cost=(1-dot)*500+d*.15;if(cost<score){best=f;score=cost;}}return best;}
 export function guideMissile(m,dt){const t=m.target;if(!t||t.destroyed){m.target=null;return;}const speed=Math.hypot(m.vx,m.vy,m.vz),dx=t.x-m.x,dy=t.y+1-m.y,dz=t.z-m.z,d=Math.hypot(dx,dy,dz);if(d<.001)return;const a=[m.vx/speed,m.vy/speed,m.vz/speed],b=[dx/d,dy/d,dz/d],dot=Math.max(-1,Math.min(1,a.reduce((v,x,i)=>v+x*b[i],0)));if(dot<.25){m.target=null;return;}const angle=Math.acos(dot),turn=Math.min(angle,.38*dt);if(angle<1e-6)return;const k=turn/angle,sin=Math.sin(angle),u=Math.sin((1-k)*angle)/sin,v=Math.sin(k*angle)/sin;m.vx=(a[0]*u+b[0]*v)*speed;m.vy=(a[1]*u+b[1]*v)*speed;m.vz=(a[2]*u+b[2]*v)*speed;}
+
+export const JET_MAX_SPEED=360;
+function stepJet(s,dt,floor,input,canLand){let elevator=clamp(input.elevator||0,-1,1),bank=clamp(input.aileron||0,-1,1);if(s.landing&&(!canLand||Math.abs(elevator)+Math.abs(bank)>.15))s.landing=false;const throttle=clamp(s.flightThrottle??.72,0,1);s.throttle=throttle;s.flightPitch=clamp(s.flightPitch+elevator*.8*dt,-1.2,1.2);s.flightBank=clamp(s.flightBank+bank*1.5*dt,-1.2,1.2);s.flightBank*=Math.exp(-.2*dt);if(s.landing){s.flightPitch+=(-.06-s.flightPitch)*dt*2;s.flightBank*=Math.exp(-2*dt);}const speed=Math.hypot(s.speed,s.verticalSpeed),acceleration=throttle*115-.00085*speed*speed-2-(s.brake||0)*95-(s.landing?110:0)-9.81*Math.sin(s.flightPitch),next=clamp(speed+acceleration*dt,0,JET_MAX_SPEED);s.yaw-=(Math.sin(s.flightBank)*.72+(input.rudder||0)*.35)*dt;s.speed=next*Math.cos(s.flightPitch);s.verticalSpeed=next*Math.sin(s.flightPitch);s.x-=Math.sin(s.yaw)*s.speed*dt;s.z-=Math.cos(s.yaw)*s.speed*dt;s.y+=s.verticalSpeed*dt;s.distance+=next*dt;s.stall=false;s.grade=0;s.roadWheel=0;s.rpm=1200+throttle*3900;if(s.y<=floor){s.y=floor;s.flightImpact=Math.max(0,-s.verticalSpeed-2.6);s.flight=s.airborne=s.landing=false;s.flightBank=s.flightPitch=s.verticalSpeed=s.flightThrottle=s.throttle=0;return true;}return false;}
